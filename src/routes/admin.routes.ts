@@ -1,12 +1,7 @@
 import { Hono } from 'hono';
-import { db } from '../core/database';
-import { orders } from '../core/database/schema/orders.schema';
-import { customerProfiles } from '../core/database/schema/customers.schema';
-import { products } from '../core/database/schema/products.schema';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateJson } from '../middleware/validation.middleware';
 import { ResponseBuilder } from '../core/response';
-import { sql, count, sum, eq, and, isNull, gte } from 'drizzle-orm';
 import { productsDomain } from '../features/products/products.domain';
 import { productsRepository } from '../features/products/products.repository';
 import { createProductSchema, updateProductSchema } from '../features/products/products.interface';
@@ -17,80 +12,11 @@ import { createCouponSchema, updateCouponSchema } from '../features/coupons/coup
 
 const adminRoutes = new Hono();
 
+import { dashboardDomain } from '../features/dashboard/dashboard.domain';
+
 // Dashboard metrics endpoint
 adminRoutes.get('/dashboard/metrics', authMiddleware, async (c) => {
-  // Get total revenue and order count
-  const revenueResult = await db
-    .select({
-      totalRevenue: sum(orders.totalAmount),
-      totalOrders: count(orders.id),
-    })
-    .from(orders)
-    .where(eq(orders.paymentStatus, 'paid'));
-
-  // Get total customers
-  const customerResult = await db
-    .select({
-      totalCustomers: count(customerProfiles.id),
-    })
-    .from(customerProfiles);
-
-  // Get total products (active only)
-  const productResult = await db
-    .select({
-      totalProducts: count(products.id),
-    })
-    .from(products)
-    .where(
-      and(
-        eq(products.status, 'active'),
-        isNull(products.deletedAt)
-      )
-    );
-
-  // Get orders by status
-  const ordersByStatus = await db
-    .select({
-      status: orders.status,
-      count: count(orders.id),
-    })
-    .from(orders)
-    .groupBy(orders.status);
-
-  // Get revenue by date (last 30 days)
-  const thirtyDaysAgo = new Date();
-  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-
-  const revenueByDate = await db
-    .select({
-      date: sql<string>`DATE(${orders.createdAt})`,
-      revenue: sum(orders.totalAmount),
-    })
-    .from(orders)
-    .where(
-      and(
-        eq(orders.paymentStatus, 'paid'),
-        gte(orders.createdAt, thirtyDaysAgo)
-      )
-    )
-    .groupBy(sql`DATE(${orders.createdAt})`)
-    .orderBy(sql`DATE(${orders.createdAt})`);
-
-  const metrics = {
-    totalRevenue: Number(revenueResult[0]?.totalRevenue || 0),
-    totalOrders: Number(revenueResult[0]?.totalOrders || 0),
-    totalCustomers: Number(customerResult[0]?.totalCustomers || 0),
-    totalProducts: Number(productResult[0]?.totalProducts || 0),
-    ordersByStatus: ordersByStatus.map(item => ({
-      status: item.status,
-      count: Number(item.count),
-    })),
-    revenueByDate: revenueByDate.map(item => ({
-      date: item.date,
-      revenue: Number(item.revenue || 0),
-    })),
-  };
-
+  const metrics = await dashboardDomain.getMetrics();
   return ResponseBuilder.success(c, metrics);
 });
 
@@ -143,17 +69,17 @@ adminRoutes.delete('/products/:id', authMiddleware, async (c) => {
 // Product image upload endpoint
 adminRoutes.post('/products/:id/images', authMiddleware, async (c) => {
   const productId = Number(c.req.param('id'));
-  
+
   // Verify product exists
   await productsDomain.getProductById(productId);
-  
+
   const body = await c.req.json();
   const { url, altText, description, sortOrder = 0, isPrimary = false } = body;
-  
+
   if (!url) {
     return ResponseBuilder.error(c, 'Image URL is required', 400, 'VALIDATION_ERROR');
   }
-  
+
   const image = await productsRepository.addImage(productId, {
     url,
     altText,
@@ -161,7 +87,7 @@ adminRoutes.post('/products/:id/images', authMiddleware, async (c) => {
     sortOrder,
     isPrimary,
   });
-  
+
   return ResponseBuilder.created(c, image);
 });
 
