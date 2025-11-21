@@ -84,6 +84,7 @@ export const blogPosts = pgTable("blog_posts", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   publishedAt: timestamp("published_at"),
+  deletedAt: timestamp("deleted_at"),
 });
 
 // Blog categories
