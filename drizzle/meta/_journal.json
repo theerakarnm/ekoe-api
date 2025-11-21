@@ -8,6 +8,13 @@
       "when": 1763698364397,
       "tag": "0000_mute_king_bedlam",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1763699874186,
+      "tag": "0001_bouncy_demogoblin",
+      "breakpoints": true
     }
   ]
 }

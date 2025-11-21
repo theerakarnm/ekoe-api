@@ -12,7 +12,12 @@ const app = new Hono();
 
 // Global Middleware
 app.use('*', loggerMiddleware);
-app.use('*', cors());
+app.use('*', cors({
+  origin: ['http://localhost:3000', 'http://localhost:5173'], // Frontend URLs
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  credentials: true,
+}));
 app.use('*', errorMiddleware);
 
 // Health Check
