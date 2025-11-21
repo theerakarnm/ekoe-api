@@ -43,9 +43,9 @@ export class ProductsRepository {
 
     // Get products with sorting
     const orderByColumn = sortBy === 'name' ? products.name :
-                          sortBy === 'basePrice' ? products.basePrice :
-                          products.createdAt;
-    
+      sortBy === 'basePrice' ? products.basePrice :
+        products.createdAt;
+
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
     const result = await db
@@ -59,7 +59,7 @@ export class ProductsRepository {
     return { products: result, total };
   }
 
-  async findById(id: number) {
+  async findById(id: string) {
     const result = await db
       .select()
       .from(products)
@@ -107,7 +107,7 @@ export class ProductsRepository {
     return result[0];
   }
 
-  async update(id: number, data: UpdateProductInput) {
+  async update(id: string, data: UpdateProductInput) {
     const result = await db
       .update(products)
       .set({
@@ -129,7 +129,7 @@ export class ProductsRepository {
     return result[0];
   }
 
-  async softDelete(id: number) {
+  async softDelete(id: string) {
     const result = await db
       .update(products)
       .set({
@@ -151,7 +151,7 @@ export class ProductsRepository {
     return result[0];
   }
 
-  async addImage(productId: number, imageData: {
+  async addImage(productId: string, imageData: {
     url: string;
     altText?: string;
     description?: string;
@@ -169,7 +169,7 @@ export class ProductsRepository {
     return result[0];
   }
 
-  async getImages(productId: number) {
+  async getImages(productId: string) {
     return await db
       .select()
       .from(productImages)

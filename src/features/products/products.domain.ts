@@ -13,7 +13,7 @@ export class ProductsDomain {
     return await productsRepository.findAll(params);
   }
 
-  async getProductById(id: number) {
+  async getProductById(id: string) {
     return await productsRepository.findById(id);
   }
 
@@ -21,11 +21,11 @@ export class ProductsDomain {
     return await productsRepository.create(data);
   }
 
-  async updateProduct(id: number, data: UpdateProductInput) {
+  async updateProduct(id: string, data: UpdateProductInput) {
     return await productsRepository.update(id, data);
   }
 
-  async deleteProduct(id: number) {
+  async deleteProduct(id: string) {
     return await productsRepository.softDelete(id);
   }
 }

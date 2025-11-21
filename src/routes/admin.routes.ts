@@ -47,7 +47,7 @@ adminRoutes.get('/products', authMiddleware, async (c) => {
 });
 
 adminRoutes.get('/products/:id', authMiddleware, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const product = await productsDomain.getProductById(id);
   return ResponseBuilder.success(c, product);
 });
@@ -59,21 +59,21 @@ adminRoutes.post('/products', authMiddleware, validateJson(createProductSchema),
 });
 
 adminRoutes.put('/products/:id', authMiddleware, validateJson(updateProductSchema), async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const data = await c.req.json();
   const product = await productsDomain.updateProduct(id, data);
   return ResponseBuilder.success(c, product);
 });
 
 adminRoutes.delete('/products/:id', authMiddleware, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   await productsDomain.deleteProduct(id);
   return ResponseBuilder.noContent(c);
 });
 
 // Product image upload endpoint
 adminRoutes.post('/products/:id/images', authMiddleware, async (c) => {
-  const productId = Number(c.req.param('id'));
+  const productId = c.req.param('id');
 
   // Verify product exists
   await productsDomain.getProductById(productId);
