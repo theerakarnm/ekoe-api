@@ -9,10 +9,15 @@ import { blogDomain } from '../features/blog/blog.domain';
 import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blog.interface';
 import { couponsDomain } from '../features/coupons/coupons.domain';
 import { createCouponSchema, updateCouponSchema } from '../features/coupons/coupons.interface';
-
-const adminRoutes = new Hono();
-
 import { dashboardDomain } from '../features/dashboard/dashboard.domain';
+import { auth } from '../core/auth';
+
+const adminRoutes = new Hono<{
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null
+  }
+}>();
 
 // Dashboard metrics endpoint
 adminRoutes.get('/dashboard/metrics', authMiddleware, async (c) => {
