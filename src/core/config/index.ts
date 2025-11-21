@@ -4,7 +4,7 @@ export const config = {
     url: process.env.DATABASE_URL || '',
   },
   auth: {
-    secret: process.env.AUTH_SECRET || 'default-secret',
+    secret: process.env.BETTER_AUTH_SECRET || 'default-secret',
   },
   env: process.env.NODE_ENV || 'development',
 };
