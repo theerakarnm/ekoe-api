@@ -10,7 +10,7 @@ import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blo
 import { couponsDomain } from '../features/coupons/coupons.domain';
 import { createCouponSchema, updateCouponSchema } from '../features/coupons/coupons.interface';
 import { dashboardDomain } from '../features/dashboard/dashboard.domain';
-import { auth } from '../core/auth';
+import { auth } from '../libs/auth';
 
 const adminRoutes = new Hono<{
   Variables: {

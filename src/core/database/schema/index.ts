@@ -1,5 +1,5 @@
 // Core schemas
-export * from './users.schema';
+export * from './auth-schema';
 
 // E-commerce schemas
 export * from './products.schema';

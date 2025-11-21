@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { type InferSelectModel } from 'drizzle-orm';
-import { users } from '../../core/database/schema/users.schema';
+import { users } from '../../core/database/schema/auth-schema';
 import { createSelectSchema } from 'drizzle-zod';
 
 // Base Zod Schema

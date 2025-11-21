@@ -1,6 +1,6 @@
 import { eq, isNull } from 'drizzle-orm';
 import { db } from '../../core/database';
-import { users } from '../../core/database/schema/users.schema';
+import { users } from '../../core/database/schema/auth-schema';
 import { CreateUserDto, UpdateUserDto } from './users.interface';
 
 export class UsersRepository {

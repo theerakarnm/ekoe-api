@@ -1,5 +1,5 @@
 import { Context, Next } from 'hono';
-import { auth } from '../core/auth';
+import { auth } from '../libs/auth';
 
 export const authMiddleware = async (c: Context, next: Next) => {
   const session = await auth.api.getSession({

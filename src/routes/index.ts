@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import usersRoutes from './users.routes';
 import adminRoutes from './admin.routes';
 import { cors } from 'hono/cors';
-import { auth } from '../core/auth';
+import { auth } from '../libs/auth';
 
 const router = new Hono<{
   Variables: {
