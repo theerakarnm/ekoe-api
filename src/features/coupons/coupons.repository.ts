@@ -54,9 +54,9 @@ export class CouponsRepository {
 
     // Get coupons with sorting
     const orderByColumn = sortBy === 'code' ? discountCodes.code :
-                          sortBy === 'expiresAt' ? discountCodes.expiresAt :
-                          discountCodes.createdAt;
-    
+      sortBy === 'expiresAt' ? discountCodes.expiresAt :
+        discountCodes.createdAt;
+
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
     const result = await db
@@ -70,7 +70,7 @@ export class CouponsRepository {
     return { codes: result, total };
   }
 
-  async findById(id: number) {
+  async findById(id: string) {
     const result = await db
       .select()
       .from(discountCodes)
@@ -115,7 +115,7 @@ export class CouponsRepository {
     return result[0];
   }
 
-  async update(id: number, data: UpdateCouponInput) {
+  async update(id: string, data: UpdateCouponInput) {
     // If code is being updated, check for conflicts
     if (data.code) {
       const existing = await this.findByCode(data.code);
@@ -143,7 +143,7 @@ export class CouponsRepository {
     return result[0];
   }
 
-  async deactivate(id: number) {
+  async deactivate(id: string) {
     const result = await db
       .update(discountCodes)
       .set({
@@ -160,7 +160,7 @@ export class CouponsRepository {
     return result[0];
   }
 
-  async getUsageStats(id: number) {
+  async getUsageStats(id: string) {
     // Verify coupon exists
     await this.findById(id);
 

@@ -164,7 +164,7 @@ adminRoutes.get('/coupons', authMiddleware, async (c) => {
 });
 
 adminRoutes.get('/coupons/:id', authMiddleware, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const coupon = await couponsDomain.getCouponById(id);
   return ResponseBuilder.success(c, coupon);
 });
@@ -176,20 +176,20 @@ adminRoutes.post('/coupons', authMiddleware, validateJson(createCouponSchema), a
 });
 
 adminRoutes.put('/coupons/:id', authMiddleware, validateJson(updateCouponSchema), async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const data = await c.req.json();
   const coupon = await couponsDomain.updateCoupon(id, data);
   return ResponseBuilder.success(c, coupon);
 });
 
 adminRoutes.patch('/coupons/:id/deactivate', authMiddleware, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const coupon = await couponsDomain.deactivateCoupon(id);
   return ResponseBuilder.success(c, coupon);
 });
 
 adminRoutes.get('/coupons/:id/stats', authMiddleware, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const stats = await couponsDomain.getCouponUsageStats(id);
   return ResponseBuilder.success(c, stats);
 });

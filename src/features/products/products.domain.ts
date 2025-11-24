@@ -10,7 +10,13 @@ export class ProductsDomain {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
-    return await productsRepository.findAll(params);
+    const result = await productsRepository.findAll(params);
+    return {
+      data: result.products,
+      total: result.total,
+      page: params.page,
+      limit: params.limit,
+    };
   }
 
   async getProductById(id: string) {

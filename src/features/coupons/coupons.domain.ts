@@ -13,7 +13,7 @@ export class CouponsDomain {
     return await couponsRepository.findAll(params);
   }
 
-  async getCouponById(id: number) {
+  async getCouponById(id: string) {
     return await couponsRepository.findById(id);
   }
 
@@ -21,15 +21,15 @@ export class CouponsDomain {
     return await couponsRepository.create(data);
   }
 
-  async updateCoupon(id: number, data: UpdateCouponInput) {
+  async updateCoupon(id: string, data: UpdateCouponInput) {
     return await couponsRepository.update(id, data);
   }
 
-  async deactivateCoupon(id: number) {
+  async deactivateCoupon(id: string) {
     return await couponsRepository.deactivate(id);
   }
 
-  async getCouponUsageStats(id: number) {
+  async getCouponUsageStats(id: string) {
     return await couponsRepository.getUsageStats(id);
   }
 }
