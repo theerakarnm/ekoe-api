@@ -67,7 +67,7 @@ export class CouponsRepository {
       .limit(limit)
       .offset(offset);
 
-    return { codes: result, total };
+    return { data: result, total, page, limit };
   }
 
   async findById(id: string) {
