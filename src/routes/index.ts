@@ -86,7 +86,11 @@ router.route('/users', usersRoutes);
 router.route('/admin', adminRoutes);
 router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
-router.route('/orders', ordersRoutes);
-router.route('/analytics', analyticsRoutes);
+
+// Orders routes (includes both /orders and /admin/orders paths)
+router.route('/', ordersRoutes);
+
+// Analytics routes (includes /admin/analytics and /admin/dashboard paths)
+router.route('/', analyticsRoutes);
 
 export default router;

@@ -1,5 +1,6 @@
 import { productsRepository } from './products.repository';
-import type { CreateProductInput, UpdateProductInput } from './products.interface';
+import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, InventoryValidationResult } from './products.interface';
+import { ValidationError } from '../../core/errors';
 
 export class ProductsDomain {
   async getAllProducts(params: {
@@ -33,6 +34,44 @@ export class ProductsDomain {
 
   async deleteProduct(id: string) {
     return await productsRepository.softDelete(id);
+  }
+
+  async getRelatedProducts(productId: string, limit: number = 4) {
+    // First verify the product exists
+    await productsRepository.findById(productId);
+    
+    // Get related products based on shared categories
+    return await productsRepository.getRelatedProducts(productId, limit);
+  }
+
+  async validateInventory(items: InventoryValidationItem[]): Promise<{
+    isValid: boolean;
+    results: InventoryValidationResult[];
+    errors: string[];
+  }> {
+    if (!items || items.length === 0) {
+      throw new ValidationError('No items provided for validation');
+    }
+
+    const results = await productsRepository.validateInventory(items);
+    
+    // Check if all items are available
+    const unavailableItems = results.filter(r => !r.isAvailable);
+    const isValid = unavailableItems.length === 0;
+    
+    // Generate detailed error messages
+    const errors = unavailableItems.map(item => {
+      const productInfo = item.variantId 
+        ? `Product ${item.productId} (variant ${item.variantId})`
+        : `Product ${item.productId}`;
+      return `${productInfo}: ${item.message}`;
+    });
+
+    return {
+      isValid,
+      results,
+      errors,
+    };
   }
 }
 
