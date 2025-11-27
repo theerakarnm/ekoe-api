@@ -6,6 +6,12 @@ import ordersRoutes from './orders.routes';
 import customersRoutes from './customers.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
+import { 
+  loginRateLimit, 
+  registrationRateLimit, 
+  passwordResetRateLimit,
+  authRateLimit 
+} from '../middleware/rate-limit.middleware';
 
 const router = new Hono<{
   Variables: {
@@ -25,6 +31,15 @@ router.use(
     credentials: true,
   }),
 )
+
+// Apply rate limiting to specific auth endpoints
+router.post('/auth/sign-in/email', loginRateLimit);
+router.post('/auth/sign-up/email', registrationRateLimit);
+router.post('/auth/forget-password', passwordResetRateLimit);
+router.post('/auth/reset-password', passwordResetRateLimit);
+
+// General rate limit for all other auth endpoints
+router.use('/auth/*', authRateLimit);
 
 // Auth routes with profile auto-creation
 router.on(['POST', 'GET'], '/auth/*', async (c) => {

@@ -6,6 +6,7 @@ import logger from './core/logger';
 import { ResponseBuilder } from './core/response';
 import { errorMiddleware } from './middleware/error.middleware';
 import { loggerMiddleware } from './middleware/logger.middleware';
+import { validateOrigin, securityHeaders } from './middleware/csrf.middleware';
 import router from './routes';
 
 const app = new Hono();
@@ -18,6 +19,8 @@ app.use('*', cors({
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+app.use('*', securityHeaders);
+app.use('*', validateOrigin(['http://localhost:3000', 'http://localhost:5173']));
 app.use('*', errorMiddleware);
 
 // Health Check

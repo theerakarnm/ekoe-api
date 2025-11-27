@@ -6,6 +6,12 @@
     "dev": "bun --watch src/index.ts",
     "build": "bun build src/index.ts --target=bun --external mock-aws-s3 --external aws-sdk --external nock",
     "start": "bun src/index.ts",
+    "test": "bun test",
+    "test:auth": "bun test src/__test__/auth-integration.test.ts",
+    "test:checkout": "bun test src/__test__/checkout-auth.test.ts",
+    "test:password": "bun test src/__test__/password-reset.test.ts",
+    "test:session": "bun test src/__test__/session-management.test.ts",
+    "test:all": "bun test src/__test__/",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio"

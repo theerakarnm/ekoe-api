@@ -5,7 +5,7 @@ import {
   LinkGoogleAccountDto,
   CustomerProfileResponse,
 } from './customers.interface';
-import { AppError } from '../../core/errors';
+import { ConflictError, NotFoundError } from '../../core/errors';
 
 export class CustomersDomain {
   /**
@@ -16,7 +16,7 @@ export class CustomersDomain {
     // Check if profile already exists
     const existingProfile = await customersRepository.findProfileByUserId(data.userId);
     if (existingProfile) {
-      throw new AppError('Customer profile already exists', 400, 'PROFILE_EXISTS', { userId: data.userId });
+      throw new ConflictError('Customer profile already exists', { userId: data.userId });
     }
 
     return customersRepository.createProfile(data);
@@ -29,7 +29,7 @@ export class CustomersDomain {
   async getCustomerProfile(userId: string): Promise<CustomerProfileResponse> {
     const profile = await customersRepository.findProfileByUserId(userId);
     if (!profile) {
-      throw new AppError('Customer profile not found', 404, 'NOT_FOUND', { userId });
+      throw new NotFoundError('Customer profile');
     }
 
     const addresses = await customersRepository.findAddressesByUserId(userId);
@@ -48,7 +48,7 @@ export class CustomersDomain {
     // Ensure profile exists
     const existingProfile = await customersRepository.findProfileByUserId(userId);
     if (!existingProfile) {
-      throw new AppError('Customer profile not found', 404, 'NOT_FOUND', { userId });
+      throw new NotFoundError('Customer profile');
     }
 
     return customersRepository.updateProfile(userId, data);

@@ -1,5 +1,6 @@
 import { Context, Next } from 'hono';
 import { auth } from '../libs/auth';
+import { UnauthorizedError, AuthEmailNotVerifiedError } from '../core/errors';
 
 /**
  * Middleware for customer routes - requires any authenticated user
@@ -11,13 +12,7 @@ export const requireCustomerAuth = async (c: Context, next: Next) => {
   });
 
   if (!session) {
-    return c.json({ 
-      success: false,
-      error: {
-        code: 'AUTH_UNAUTHORIZED',
-        message: 'Authentication required'
-      }
-    }, 401);
+    throw new UnauthorizedError('Authentication required');
   }
 
   c.set('user', session.user);
@@ -35,24 +30,12 @@ export const requireAdminAuth = async (c: Context, next: Next) => {
   });
 
   if (!session) {
-    return c.json({ 
-      success: false,
-      error: {
-        code: 'AUTH_UNAUTHORIZED',
-        message: 'Authentication required'
-      }
-    }, 401);
+    throw new UnauthorizedError('Authentication required');
   }
 
   // Check if user has admin role
   if (session.user.role !== 'admin') {
-    return c.json({ 
-      success: false,
-      error: {
-        code: 'AUTH_FORBIDDEN',
-        message: 'Admin access required'
-      }
-    }, 403);
+    throw new UnauthorizedError('Admin access required');
   }
 
   c.set('user', session.user);
@@ -87,23 +70,11 @@ export const requireEmailVerification = async (c: Context, next: Next) => {
   const user = c.get('user');
 
   if (!user) {
-    return c.json({ 
-      success: false,
-      error: {
-        code: 'AUTH_UNAUTHORIZED',
-        message: 'Authentication required'
-      }
-    }, 401);
+    throw new UnauthorizedError('Authentication required');
   }
 
   if (!user.emailVerified) {
-    return c.json({ 
-      success: false,
-      error: {
-        code: 'AUTH_EMAIL_NOT_VERIFIED',
-        message: 'Email verification required'
-      }
-    }, 403);
+    throw new AuthEmailNotVerifiedError();
   }
 
   await next();

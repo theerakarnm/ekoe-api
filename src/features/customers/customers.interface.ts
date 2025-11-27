@@ -9,66 +9,66 @@ export const selectCustomerAddressSchema = createSelectSchema(customerAddresses)
 
 // Customer Profile DTOs
 export const createCustomerProfileSchema = z.object({
-  userId: z.string(),
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
-  phone: z.string().regex(/^[0-9+\-\s()]+$/, 'Invalid phone number format').max(20).optional(),
-  dateOfBirth: z.coerce.date().optional(),
+  userId: z.string().uuid('Invalid user ID format'),
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim().optional(),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim().optional(),
+  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
+  dateOfBirth: z.coerce.date().max(new Date(), 'Date of birth cannot be in the future').optional(),
   newsletterSubscribed: z.boolean().default(false),
   smsSubscribed: z.boolean().default(false),
   language: z.enum(['th', 'en']).default('th'),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000, 'Notes are too long').optional(),
 });
 
 export const updateCustomerProfileSchema = z.object({
-  firstName: z.string().min(1).max(100).optional(),
-  lastName: z.string().min(1).max(100).optional(),
-  phone: z.string().regex(/^[0-9+\-\s()]+$/, 'Invalid phone number format').max(20).optional(),
-  dateOfBirth: z.coerce.date().optional(),
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim().optional(),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim().optional(),
+  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
+  dateOfBirth: z.coerce.date().max(new Date(), 'Date of birth cannot be in the future').optional(),
   newsletterSubscribed: z.boolean().optional(),
   smsSubscribed: z.boolean().optional(),
   language: z.enum(['th', 'en']).optional(),
-  notes: z.string().max(1000).optional(),
+  notes: z.string().max(1000, 'Notes are too long').optional(),
 });
 
 // Customer Address DTOs
 export const createCustomerAddressSchema = z.object({
-  userId: z.string(),
-  label: z.string().max(50).optional(),
-  firstName: z.string().min(1, 'First name is required').max(100),
-  lastName: z.string().min(1, 'Last name is required').max(100),
-  company: z.string().max(200).optional(),
-  addressLine1: z.string().min(1, 'Address line 1 is required').max(200),
-  addressLine2: z.string().max(200).optional(),
-  city: z.string().min(1, 'City is required').max(100),
-  province: z.string().min(1, 'Province is required').max(100),
+  userId: z.string().uuid('Invalid user ID format'),
+  label: z.string().max(50, 'Label is too long').trim().optional(),
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim(),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim(),
+  company: z.string().max(200, 'Company name is too long').trim().optional(),
+  addressLine1: z.string().min(1, 'Address line 1 is required').max(200, 'Address is too long').trim(),
+  addressLine2: z.string().max(200, 'Address is too long').trim().optional(),
+  city: z.string().min(1, 'City is required').max(100, 'City name is too long').trim(),
+  province: z.string().min(1, 'Province is required').max(100, 'Province name is too long').trim(),
   postalCode: z.string().min(1, 'Postal code is required').regex(/^[0-9]{5}$/, 'Postal code must be 5 digits'),
-  country: z.string().max(100).default('Thailand'),
-  phone: z.string().min(1, 'Phone is required').regex(/^[0-9+\-\s()]+$/, 'Invalid phone number format').max(20),
+  country: z.string().max(100, 'Country name is too long').default('Thailand'),
+  phone: z.string().min(1, 'Phone is required').regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)'),
   isDefault: z.boolean().default(false),
 });
 
 export const updateCustomerAddressSchema = z.object({
-  label: z.string().max(50).optional(),
-  firstName: z.string().min(1, 'First name is required').max(100).optional(),
-  lastName: z.string().min(1, 'Last name is required').max(100).optional(),
-  company: z.string().max(200).optional(),
-  addressLine1: z.string().min(1, 'Address line 1 is required').max(200).optional(),
-  addressLine2: z.string().max(200).optional(),
-  city: z.string().min(1, 'City is required').max(100).optional(),
-  province: z.string().min(1, 'Province is required').max(100).optional(),
+  label: z.string().max(50, 'Label is too long').trim().optional(),
+  firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim().optional(),
+  lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim().optional(),
+  company: z.string().max(200, 'Company name is too long').trim().optional(),
+  addressLine1: z.string().min(1, 'Address line 1 is required').max(200, 'Address is too long').trim().optional(),
+  addressLine2: z.string().max(200, 'Address is too long').trim().optional(),
+  city: z.string().min(1, 'City is required').max(100, 'City name is too long').trim().optional(),
+  province: z.string().min(1, 'Province is required').max(100, 'Province name is too long').trim().optional(),
   postalCode: z.string().min(1, 'Postal code is required').regex(/^[0-9]{5}$/, 'Postal code must be 5 digits').optional(),
-  country: z.string().max(100).optional(),
-  phone: z.string().min(1, 'Phone is required').regex(/^[0-9+\-\s()]+$/, 'Invalid phone number format').max(20).optional(),
+  country: z.string().max(100, 'Country name is too long').optional(),
+  phone: z.string().min(1, 'Phone is required').regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
   isDefault: z.boolean().optional(),
 });
 
 // Google Account Linking
 export const linkGoogleAccountSchema = z.object({
-  googleId: z.string(),
-  email: z.string().email(),
-  name: z.string().optional(),
-  image: z.string().optional(),
+  googleId: z.string().min(1, 'Google ID is required'),
+  email: z.string().email('Invalid email address').toLowerCase().trim(),
+  name: z.string().max(200, 'Name is too long').trim().optional(),
+  image: z.string().url('Invalid image URL').optional(),
 });
 
 // Types

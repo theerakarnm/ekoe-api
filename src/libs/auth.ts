@@ -88,13 +88,37 @@ export const auth = betterAuth({
       enabled: true
     },
     defaultCookieAttributes: {
+      // SameSite attribute for CSRF protection
+      // 'none' is required for cross-origin requests (API and Web on different origins)
+      // In production with same domain, consider using 'lax' or 'strict'
       sameSite: "none",
+      
+      // Secure flag - cookies only sent over HTTPS
+      // Always true in production, false in development for localhost testing
       secure: config.env === 'production',
-      httpOnly: true, // Prevent XSS attacks
-      partitioned: true, // New browser standards will mandate this for foreign cookies
+      
+      // HttpOnly flag - prevents JavaScript access to cookies (XSS protection)
+      httpOnly: true,
+      
+      // Partitioned flag - for CHIPS (Cookies Having Independent Partitioned State)
+      // Helps with third-party cookie restrictions in modern browsers
+      partitioned: true,
+      
+      // Cookie expiration - matches session expiration (7 days)
       maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
-    }
-  }
+      
+      // Path - restrict cookie to specific paths if needed
+      path: '/',
+      
+      // Domain - set explicitly in production for subdomain support
+      // domain: config.env === 'production' ? '.yourdomain.com' : undefined,
+    },
+    useSecureCookies: config.env === 'production', // Use secure cookies in production
+    generateId: undefined, // Use default ID generation
+  },
+  // CSRF protection is enabled by default in better-auth
+  // The library automatically validates CSRF tokens for state-changing operations
+  // and validates the state parameter in OAuth flows
 });
 
 /**
