@@ -19,7 +19,52 @@ export const updateUserSchema = z.object({
   role: z.enum(['user', 'admin']).optional(),
 });
 
+// Customer query parameters
+export const getCustomersParamsSchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20),
+  search: z.string().optional(),
+});
+
 // Types
 export type User = InferSelectModel<typeof users>;
 export type CreateUserDto = z.infer<typeof createUserSchema>;
 export type UpdateUserDto = z.infer<typeof updateUserSchema>;
+export type GetCustomersParams = z.infer<typeof getCustomersParamsSchema>;
+
+// Customer with statistics
+export interface CustomerWithStats {
+  id: string;
+  name: string;
+  email: string;
+  emailVerified: boolean;
+  image: string | null;
+  role: string | null;
+  createdAt: Date;
+  orderCount: number;
+  totalSpent: number;
+}
+
+// Customer detail with order history
+export interface CustomerDetail extends User {
+  orderCount: number;
+  totalSpent: number;
+  orders: Array<{
+    id: string;
+    orderNumber: string;
+    email: string;
+    status: string;
+    paymentStatus: string;
+    fulfillmentStatus: string | null;
+    subtotal: number;
+    shippingCost: number | null;
+    taxAmount: number | null;
+    discountAmount: number | null;
+    totalAmount: number;
+    currency: string | null;
+    createdAt: Date;
+    paidAt: Date | null;
+    shippedAt: Date | null;
+    deliveredAt: Date | null;
+  }>;
+}

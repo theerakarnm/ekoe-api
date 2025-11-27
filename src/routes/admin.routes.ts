@@ -10,6 +10,8 @@ import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blo
 import { couponsDomain } from '../features/coupons/coupons.domain';
 import { createCouponSchema, updateCouponSchema } from '../features/coupons/coupons.interface';
 import { dashboardDomain } from '../features/dashboard/dashboard.domain';
+import { usersDomain } from '../features/users/users.domain';
+import { getCustomersParamsSchema } from '../features/users/users.interface';
 import { auth } from '../libs/auth';
 
 const adminRoutes = new Hono<{
@@ -192,6 +194,29 @@ adminRoutes.get('/coupons/:id/stats', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   const stats = await couponsDomain.getCouponUsageStats(id);
   return ResponseBuilder.success(c, stats);
+});
+
+// Customer management endpoints
+adminRoutes.get('/customers', requireAdminAuth, async (c) => {
+  const page = Number(c.req.query('page') || '1');
+  const limit = Number(c.req.query('limit') || '20');
+  const search = c.req.query('search');
+
+  // Validate query parameters
+  const params = getCustomersParamsSchema.parse({
+    page,
+    limit,
+    search,
+  });
+
+  const result = await usersDomain.getCustomersWithStats(params);
+  return ResponseBuilder.success(c, result);
+});
+
+adminRoutes.get('/customers/:id', requireAdminAuth, async (c) => {
+  const id = c.req.param('id');
+  const customer = await usersDomain.getCustomerWithOrderHistory(id);
+  return ResponseBuilder.success(c, customer);
 });
 
 export default adminRoutes;
