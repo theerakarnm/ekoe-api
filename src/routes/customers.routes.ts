@@ -10,6 +10,8 @@ import {
   updateCustomerAddressSchema,
 } from '../features/customers/customers.interface';
 import { auth } from '../libs/auth';
+import { emailService } from '../core/email';
+import { logger } from '../core/logger';
 
 const customersRoutes = new Hono<{
   Variables: {
@@ -88,6 +90,64 @@ customersRoutes.delete('/me/addresses/:id', async (c) => {
   const id = c.req.param('id');
   await customersRepository.deleteAddress(id, user.id);
   return ResponseBuilder.noContent(c);
+});
+
+// Email verification endpoint
+customersRoutes.post('/me/resend-verification', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  // Check if email is already verified
+  if (user.emailVerified) {
+    return ResponseBuilder.error(c, 'Email is already verified', 400, 'EMAIL_ALREADY_VERIFIED');
+  }
+
+  // Check if email service is enabled
+  if (!emailService.isEnabled()) {
+    logger.warn({ userId: user.id }, 'Cannot resend verification - SMTP not configured');
+    return ResponseBuilder.error(
+      c,
+      'Email service is not configured. Please contact support.',
+      503,
+      'EMAIL_SERVICE_UNAVAILABLE'
+    );
+  }
+
+  try {
+    // Generate verification URL using better-auth
+    // Note: Better-auth handles verification token generation internally
+    // We'll need to trigger the verification email through better-auth's API
+    const verificationUrl = `${c.req.url.split('/api')[0]}/auth/verify-email?token=${user.id}`;
+    
+    const sent = await emailService.sendVerificationEmail(
+      user.email,
+      user.name || 'Customer',
+      verificationUrl
+    );
+
+    if (sent) {
+      logger.info({ userId: user.id, email: user.email }, 'Verification email resent successfully');
+      return ResponseBuilder.success(c, { message: 'Verification email sent successfully' });
+    } else {
+      logger.error({ userId: user.id, email: user.email }, 'Failed to resend verification email');
+      return ResponseBuilder.error(
+        c,
+        'Failed to send verification email. Please try again later.',
+        500,
+        'EMAIL_SEND_FAILED'
+      );
+    }
+  } catch (error) {
+    logger.error({ error, userId: user.id }, 'Error resending verification email');
+    return ResponseBuilder.error(
+      c,
+      'An error occurred while sending verification email',
+      500,
+      'INTERNAL_ERROR'
+    );
+  }
 });
 
 export default customersRoutes;
