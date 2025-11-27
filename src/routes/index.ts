@@ -4,6 +4,7 @@ import adminRoutes from './admin.routes';
 import productsRoutes from './products.routes';
 import ordersRoutes from './orders.routes';
 import customersRoutes from './customers.routes';
+import analyticsRoutes from './analytics.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 import { 
@@ -86,5 +87,6 @@ router.route('/admin', adminRoutes);
 router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
 router.route('/orders', ordersRoutes);
+router.route('/analytics', analyticsRoutes);
 
 export default router;
