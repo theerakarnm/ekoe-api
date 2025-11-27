@@ -1,11 +1,18 @@
 import { Hono } from 'hono';
 import { ResponseBuilder } from '../core/response';
 import { productsDomain } from '../features/products/products.domain';
+import { optionalAuth } from '../middleware/auth.middleware';
+import { auth } from '../libs/auth';
 
-const productsRoutes = new Hono();
+const productsRoutes = new Hono<{
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+}>();
 
-// Public endpoint to list all active products
-productsRoutes.get('/', async (c) => {
+// Public endpoint to list all active products (with optional auth for enhanced features)
+productsRoutes.get('/', optionalAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');
   const limit = Number(c.req.query('limit') || '20');
   const search = c.req.query('search');
@@ -25,8 +32,8 @@ productsRoutes.get('/', async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
-// Public endpoint to get a single product by ID
-productsRoutes.get('/:id', async (c) => {
+// Public endpoint to get a single product by ID (with optional auth for enhanced features)
+productsRoutes.get('/:id', optionalAuth, async (c) => {
   const id = c.req.param('id');
   const product = await productsDomain.getProductById(id);
 

@@ -2,6 +2,8 @@ import { Hono } from 'hono';
 import usersRoutes from './users.routes';
 import adminRoutes from './admin.routes';
 import productsRoutes from './products.routes';
+import ordersRoutes from './orders.routes';
+import customersRoutes from './customers.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 
@@ -30,6 +32,8 @@ router.on(['POST', 'GET'], '/auth/*', (c) => auth.handler(c.req.raw));
 // Feature routes
 router.route('/users', usersRoutes);
 router.route('/admin', adminRoutes);
+router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
+router.route('/orders', ordersRoutes);
 
 export default router;

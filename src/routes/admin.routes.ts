@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { authMiddleware } from '../middleware/auth.middleware';
+import { requireAdminAuth } from '../middleware/auth.middleware';
 import { validateJson } from '../middleware/validation.middleware';
 import { ResponseBuilder } from '../core/response';
 import { productsDomain } from '../features/products/products.domain';
@@ -20,13 +20,13 @@ const adminRoutes = new Hono<{
 }>();
 
 // Dashboard metrics endpoint
-adminRoutes.get('/dashboard/metrics', authMiddleware, async (c) => {
+adminRoutes.get('/dashboard/metrics', requireAdminAuth, async (c) => {
   const metrics = await dashboardDomain.getMetrics();
   return ResponseBuilder.success(c, metrics);
 });
 
 // Product CRUD endpoints
-adminRoutes.get('/products', authMiddleware, async (c) => {
+adminRoutes.get('/products', requireAdminAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');
   const limit = Number(c.req.query('limit') || '20');
   const search = c.req.query('search');
@@ -46,33 +46,33 @@ adminRoutes.get('/products', authMiddleware, async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
-adminRoutes.get('/products/:id', authMiddleware, async (c) => {
+adminRoutes.get('/products/:id', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   const product = await productsDomain.getProductById(id);
   return ResponseBuilder.success(c, product);
 });
 
-adminRoutes.post('/products', authMiddleware, validateJson(createProductSchema), async (c) => {
+adminRoutes.post('/products', requireAdminAuth, validateJson(createProductSchema), async (c) => {
   const data = await c.req.json();
   const product = await productsDomain.createProduct(data);
   return ResponseBuilder.created(c, product);
 });
 
-adminRoutes.put('/products/:id', authMiddleware, validateJson(updateProductSchema), async (c) => {
+adminRoutes.put('/products/:id', requireAdminAuth, validateJson(updateProductSchema), async (c) => {
   const id = c.req.param('id');
   const data = await c.req.json();
   const product = await productsDomain.updateProduct(id, data);
   return ResponseBuilder.success(c, product);
 });
 
-adminRoutes.delete('/products/:id', authMiddleware, async (c) => {
+adminRoutes.delete('/products/:id', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   await productsDomain.deleteProduct(id);
   return ResponseBuilder.noContent(c);
 });
 
 // Product image upload endpoint
-adminRoutes.post('/products/:id/images', authMiddleware, async (c) => {
+adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const productId = c.req.param('id');
 
   // Verify product exists
@@ -97,7 +97,7 @@ adminRoutes.post('/products/:id/images', authMiddleware, async (c) => {
 });
 
 // Blog post CRUD endpoints
-adminRoutes.get('/blog', authMiddleware, async (c) => {
+adminRoutes.get('/blog', requireAdminAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');
   const limit = Number(c.req.query('limit') || '20');
   const search = c.req.query('search');
@@ -117,33 +117,33 @@ adminRoutes.get('/blog', authMiddleware, async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
-adminRoutes.get('/blog/:id', authMiddleware, async (c) => {
+adminRoutes.get('/blog/:id', requireAdminAuth, async (c) => {
   const id = Number(c.req.param('id'));
   const post = await blogDomain.getBlogPostById(id);
   return ResponseBuilder.success(c, post);
 });
 
-adminRoutes.post('/blog', authMiddleware, validateJson(createBlogPostSchema), async (c) => {
+adminRoutes.post('/blog', requireAdminAuth, validateJson(createBlogPostSchema), async (c) => {
   const data = await c.req.json();
   const post = await blogDomain.createBlogPost(data);
   return ResponseBuilder.created(c, post);
 });
 
-adminRoutes.put('/blog/:id', authMiddleware, validateJson(updateBlogPostSchema), async (c) => {
+adminRoutes.put('/blog/:id', requireAdminAuth, validateJson(updateBlogPostSchema), async (c) => {
   const id = Number(c.req.param('id'));
   const data = await c.req.json();
   const post = await blogDomain.updateBlogPost(id, data);
   return ResponseBuilder.success(c, post);
 });
 
-adminRoutes.delete('/blog/:id', authMiddleware, async (c) => {
+adminRoutes.delete('/blog/:id', requireAdminAuth, async (c) => {
   const id = Number(c.req.param('id'));
   await blogDomain.deleteBlogPost(id);
   return ResponseBuilder.noContent(c);
 });
 
 // Coupon CRUD endpoints
-adminRoutes.get('/coupons', authMiddleware, async (c) => {
+adminRoutes.get('/coupons', requireAdminAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');
   const limit = Number(c.req.query('limit') || '20');
   const search = c.req.query('search');
@@ -163,32 +163,32 @@ adminRoutes.get('/coupons', authMiddleware, async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
-adminRoutes.get('/coupons/:id', authMiddleware, async (c) => {
+adminRoutes.get('/coupons/:id', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   const coupon = await couponsDomain.getCouponById(id);
   return ResponseBuilder.success(c, coupon);
 });
 
-adminRoutes.post('/coupons', authMiddleware, validateJson(createCouponSchema), async (c) => {
+adminRoutes.post('/coupons', requireAdminAuth, validateJson(createCouponSchema), async (c) => {
   const data = await c.req.json();
   const coupon = await couponsDomain.createCoupon(data);
   return ResponseBuilder.created(c, coupon);
 });
 
-adminRoutes.put('/coupons/:id', authMiddleware, validateJson(updateCouponSchema), async (c) => {
+adminRoutes.put('/coupons/:id', requireAdminAuth, validateJson(updateCouponSchema), async (c) => {
   const id = c.req.param('id');
   const data = await c.req.json();
   const coupon = await couponsDomain.updateCoupon(id, data);
   return ResponseBuilder.success(c, coupon);
 });
 
-adminRoutes.patch('/coupons/:id/deactivate', authMiddleware, async (c) => {
+adminRoutes.patch('/coupons/:id/deactivate', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   const coupon = await couponsDomain.deactivateCoupon(id);
   return ResponseBuilder.success(c, coupon);
 });
 
-adminRoutes.get('/coupons/:id/stats', authMiddleware, async (c) => {
+adminRoutes.get('/coupons/:id/stats', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   const stats = await couponsDomain.getCouponUsageStats(id);
   return ResponseBuilder.success(c, stats);

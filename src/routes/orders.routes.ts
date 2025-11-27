@@ -1,0 +1,78 @@
+import { Hono } from 'hono';
+import { requireAdminAuth, requireCustomerAuth } from '../middleware/auth.middleware';
+import { validateJson } from '../middleware/validation.middleware';
+import { ResponseBuilder } from '../core/response';
+import { ordersDomain } from '../features/orders/orders.domain';
+import {
+  createOrderSchema,
+  updateOrderStatusSchema,
+} from '../features/orders/orders.interface';
+import { auth } from '../libs/auth';
+
+const ordersRoutes = new Hono<{
+  Variables: {
+    user: typeof auth.$Infer.Session.user | null;
+    session: typeof auth.$Infer.Session.session | null;
+  };
+}>();
+
+// Customer endpoint - Create order (checkout) - requires authentication
+ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
+  const data = await c.req.json();
+  const order = await ordersDomain.createOrder(data);
+  return ResponseBuilder.created(c, order);
+});
+
+// Admin endpoints - Order management
+ordersRoutes.get('/admin/orders', requireAdminAuth, async (c) => {
+  const page = Number(c.req.query('page') || '1');
+  const limit = Number(c.req.query('limit') || '20');
+  const status = c.req.query('status');
+  const search = c.req.query('search');
+  const sortBy = c.req.query('sortBy');
+  const sortOrder = (c.req.query('sortOrder') || 'desc') as 'asc' | 'desc';
+
+  const result = await ordersDomain.getOrders({
+    page,
+    limit,
+    status,
+    search,
+    sortBy,
+    sortOrder,
+  });
+
+  return ResponseBuilder.success(c, result);
+});
+
+ordersRoutes.get('/admin/orders/:id', requireAdminAuth, async (c) => {
+  const id = c.req.param('id');
+  const order = await ordersDomain.getOrderById(id);
+  return ResponseBuilder.success(c, order);
+});
+
+ordersRoutes.patch(
+  '/admin/orders/:id',
+  requireAdminAuth,
+  validateJson(updateOrderStatusSchema),
+  async (c) => {
+    const id = c.req.param('id');
+    const data = await c.req.json();
+    const user = c.get('user');
+
+    const order = await ordersDomain.updateOrderStatus(
+      id,
+      data,
+      user?.id
+    );
+
+    return ResponseBuilder.success(c, order);
+  }
+);
+
+ordersRoutes.get('/admin/orders/:id/history', requireAdminAuth, async (c) => {
+  const id = c.req.param('id');
+  const history = await ordersDomain.getOrderStatusHistory(id);
+  return ResponseBuilder.success(c, history);
+});
+
+export default ordersRoutes;
