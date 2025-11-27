@@ -75,6 +75,14 @@ export const auth = betterAuth({
   trustedOrigins: [config.web.url],
   secret: config.auth.secret,
   baseURL: config.auth.url,
+  session: {
+    expiresIn: 60 * 60 * 24 * 7, // 7 days in seconds
+    updateAge: 60 * 60 * 24, // Update session every 24 hours (1 day in seconds)
+    cookieCache: {
+      enabled: true,
+      maxAge: 60 * 5, // Cache for 5 minutes
+    },
+  },
   advanced: {
     crossSubDomainCookies: {
       enabled: true
@@ -82,7 +90,9 @@ export const auth = betterAuth({
     defaultCookieAttributes: {
       sameSite: "none",
       secure: config.env === 'production',
-      partitioned: true // New browser standards will mandate this for foreign cookies
+      httpOnly: true, // Prevent XSS attacks
+      partitioned: true, // New browser standards will mandate this for foreign cookies
+      maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
     }
   }
 });
