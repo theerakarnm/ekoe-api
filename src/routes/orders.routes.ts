@@ -16,11 +16,28 @@ const ordersRoutes = new Hono<{
   };
 }>();
 
-// Customer endpoint - Create order (checkout) - requires authentication
+// Customer endpoints
+// Create order (checkout) - requires authentication
 ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
   const data = await c.req.json();
   const order = await ordersDomain.createOrder(data);
   return ResponseBuilder.created(c, order);
+});
+
+// Get order by ID (for order confirmation) - requires authentication
+ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  
+  // Get order and verify it belongs to the user
+  const order = await ordersDomain.getOrderById(id);
+  
+  // Allow access if user is the order owner or if email matches (for guest checkout)
+  if (order.userId !== user?.id && order.email !== user?.email) {
+    return ResponseBuilder.error(c, 'Unauthorized', 403, 'FORBIDDEN');
+  }
+  
+  return ResponseBuilder.success(c, order);
 });
 
 // Admin endpoints - Order management
