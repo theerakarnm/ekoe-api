@@ -29,7 +29,7 @@ let testUserId: string;
 let testSessionToken: string;
 
 describe('Customer Authentication Integration Tests', () => {
-  
+
   // Cleanup after all tests
   afterAll(async () => {
     if (testUserId) {
@@ -41,7 +41,7 @@ describe('Customer Authentication Integration Tests', () => {
   });
 
   describe('Test 18.1: Complete Registration Flow', () => {
-    
+
     test('should register new customer with email/password', async () => {
       const response = await fetch(`${API_URL}/api/auth/sign-up/email`, {
         method: 'POST',
@@ -57,15 +57,15 @@ describe('Customer Authentication Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       // Verify response structure
       expect(data).toHaveProperty('user');
       expect(data.user.email).toBe(TEST_USER_EMAIL.toLowerCase());
       expect(data.user.name).toBe(TEST_USER_NAME);
-      
+
       // Store user ID for cleanup
       testUserId = data.user.id;
-      
+
       // Verify session cookie is set
       const cookies = response.headers.get('set-cookie');
       expect(cookies).toBeTruthy();
@@ -118,7 +118,7 @@ describe('Customer Authentication Integration Tests', () => {
   });
 
   describe('Test 18.1: Login Flow', () => {
-    
+
     test('should login with correct credentials', async () => {
       const response = await fetch(`${API_URL}/api/auth/sign-in/email`, {
         method: 'POST',
@@ -133,14 +133,14 @@ describe('Customer Authentication Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       expect(data).toHaveProperty('user');
       expect(data.user.email).toBe(TEST_USER_EMAIL.toLowerCase());
-      
+
       // Extract session token from cookies
       const cookies = response.headers.get('set-cookie');
       expect(cookies).toBeTruthy();
-      
+
       // Store session token for subsequent tests
       const tokenMatch = cookies?.match(/better-auth\.session_token=([^;]+)/);
       if (tokenMatch) {
@@ -182,7 +182,7 @@ describe('Customer Authentication Integration Tests', () => {
   });
 
   describe('Test 18.5: Session Management', () => {
-    
+
     test('should retrieve session with valid token', async () => {
       if (!testSessionToken) {
         throw new Error('No session token available. Login test may have failed.');
@@ -197,7 +197,7 @@ describe('Customer Authentication Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       expect(data).toHaveProperty('user');
       expect(data.user.id).toBe(testUserId);
       expect(data.user.email).toBe(TEST_USER_EMAIL.toLowerCase());
@@ -239,7 +239,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      
+
       // Verify session is invalidated
       const sessionCheck = await fetch(`${API_URL}/api/auth/get-session`, {
         method: 'GET',
@@ -253,7 +253,7 @@ describe('Customer Authentication Integration Tests', () => {
   });
 
   describe('Test 18.1: Protected Routes', () => {
-    
+
     let newSessionToken: string;
 
     // Login again for protected route tests
@@ -286,7 +286,7 @@ describe('Customer Authentication Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       expect(data.success).toBe(true);
       expect(data.data).toHaveProperty('userId');
       expect(data.data.userId).toBe(testUserId);
@@ -311,7 +311,7 @@ describe('Customer Authentication Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
+
       expect(data.success).toBe(true);
       expect(Array.isArray(data.data)).toBe(true);
     });
