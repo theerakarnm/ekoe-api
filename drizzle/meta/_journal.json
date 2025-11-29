@@ -15,6 +15,13 @@
       "when": 1763699874186,
       "tag": "0001_bouncy_demogoblin",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1733011200000,
+      "tag": "0002_add_product_search_indexes",
+      "breakpoints": true
     }
   ]
 }

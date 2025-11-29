@@ -43,10 +43,10 @@ export class BlogRepository {
 
     // Get blog posts with sorting
     const orderByColumn = sortBy === 'title' ? blogPosts.title :
-                          sortBy === 'publishedAt' ? blogPosts.publishedAt :
-                          sortBy === 'viewCount' ? blogPosts.viewCount :
-                          blogPosts.createdAt;
-    
+      sortBy === 'publishedAt' ? blogPosts.publishedAt :
+        sortBy === 'viewCount' ? blogPosts.viewCount :
+          blogPosts.createdAt;
+
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
     const result = await db
@@ -60,7 +60,7 @@ export class BlogRepository {
     return { posts: result, total };
   }
 
-  async findById(id: number) {
+  async findById(id: string) {
     const result = await db
       .select()
       .from(blogPosts)
@@ -91,7 +91,7 @@ export class BlogRepository {
     return result[0];
   }
 
-  async update(id: number, data: UpdateBlogPostInput) {
+  async update(id: string, data: UpdateBlogPostInput) {
     const result = await db
       .update(blogPosts)
       .set({
@@ -113,7 +113,7 @@ export class BlogRepository {
     return result[0];
   }
 
-  async softDelete(id: number) {
+  async softDelete(id: string) {
     const result = await db
       .update(blogPosts)
       .set({

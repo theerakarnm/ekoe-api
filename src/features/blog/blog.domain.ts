@@ -13,7 +13,7 @@ export class BlogDomain {
     return await blogRepository.findAll(params);
   }
 
-  async getBlogPostById(id: number) {
+  async getBlogPostById(id: string) {
     return await blogRepository.findById(id);
   }
 
@@ -21,11 +21,11 @@ export class BlogDomain {
     return await blogRepository.create(data);
   }
 
-  async updateBlogPost(id: number, data: UpdateBlogPostInput) {
+  async updateBlogPost(id: string, data: UpdateBlogPostInput) {
     return await blogRepository.update(id, data);
   }
 
-  async deleteBlogPost(id: number) {
+  async deleteBlogPost(id: string) {
     return await blogRepository.softDelete(id);
   }
 }

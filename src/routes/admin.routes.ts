@@ -120,7 +120,7 @@ adminRoutes.get('/blog', requireAdminAuth, async (c) => {
 });
 
 adminRoutes.get('/blog/:id', requireAdminAuth, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const post = await blogDomain.getBlogPostById(id);
   return ResponseBuilder.success(c, post);
 });
@@ -132,14 +132,14 @@ adminRoutes.post('/blog', requireAdminAuth, validateJson(createBlogPostSchema), 
 });
 
 adminRoutes.put('/blog/:id', requireAdminAuth, validateJson(updateBlogPostSchema), async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   const data = await c.req.json();
   const post = await blogDomain.updateBlogPost(id, data);
   return ResponseBuilder.success(c, post);
 });
 
 adminRoutes.delete('/blog/:id', requireAdminAuth, async (c) => {
-  const id = Number(c.req.param('id'));
+  const id = c.req.param('id');
   await blogDomain.deleteBlogPost(id);
   return ResponseBuilder.noContent(c);
 });

@@ -5,7 +5,7 @@ import { paymentConfig, isPromptPayConfigured } from './core/config/payment.conf
 import { checkDbConnection } from './core/database';
 import logger from './core/logger';
 import { ResponseBuilder } from './core/response';
-import { errorMiddleware } from './middleware/error.middleware';
+import { errorMiddleware, errorHandler } from './middleware/error.middleware';
 import { loggerMiddleware } from './middleware/logger.middleware';
 import { validateOrigin, securityHeaders } from './middleware/csrf.middleware';
 import { initializePromptPayClient } from './libs/promptpay-client';
@@ -35,6 +35,9 @@ app.use('*', securityHeaders);
 app.use('*', validateOrigin(['http://localhost:3000', 'http://localhost:5173']));
 app.use('*', errorMiddleware);
 
+// Error Handler
+app.onError(errorHandler);
+
 // Health Check
 app.get('/health', async (c) => {
   const dbStatus = await checkDbConnection();
@@ -48,6 +51,8 @@ app.get('/health', async (c) => {
 app.route('/api', router);
 
 logger.info(`Server is running on port ${config.port}`);
+
+export { app };
 
 export default {
   port: config.port,
