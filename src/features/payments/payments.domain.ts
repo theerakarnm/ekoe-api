@@ -284,6 +284,9 @@ export class PaymentsDomain {
         throw new NotFoundError('Payment');
       }
 
+      // Validate status transition
+      this.validateStatusTransition(payment.status, 'failed');
+
       // Update payment status
       await paymentsRepository.markPaymentFailed(paymentId, new Date(), reason);
 
@@ -572,21 +575,68 @@ export class PaymentsDomain {
       throw new ValidationError('Payment is already completed');
     }
 
-    // Update payment with manual verification flag
-    await paymentsRepository.updatePaymentStatus(
-      paymentId,
-      'completed',
-      undefined,
-      {
-        manualVerification: true,
-        verifiedBy: adminId,
-        verificationNote: note,
-        verifiedAt: new Date().toISOString(),
-      }
-    );
+    // Validate status transition
+    this.validateStatusTransition(payment.status, 'completed');
 
-    // Complete payment workflow
-    await this.completePayment(paymentId);
+    // Update payment and order in transaction
+    await db.transaction(async (tx) => {
+      // Update payment with manual verification flag and mark as completed
+      await paymentsRepository.markPaymentCompleted(paymentId, new Date());
+      
+      // Store manual verification metadata
+      await paymentsRepository.updatePaymentStatus(
+        paymentId,
+        'completed',
+        undefined,
+        {
+          manualVerification: true,
+          verifiedBy: adminId,
+          verificationNote: note,
+          verifiedAt: new Date().toISOString(),
+        }
+      );
+
+      // Update order status
+      await tx
+        .update(orders)
+        .set({
+          paymentStatus: 'paid',
+          paidAt: new Date(),
+          status: 'processing',
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, payment.orderId));
+    });
+
+    // Send confirmation email (outside transaction)
+    setImmediate(async () => {
+      try {
+        const order = await paymentsRepository.getPaymentById(paymentId);
+        if (order && emailService.isEnabled()) {
+          const orderDetails = await db
+            .select()
+            .from(orders)
+            .where(eq(orders.id, payment.orderId))
+            .limit(1);
+          
+          if (orderDetails[0]) {
+            await emailService.sendPaymentConfirmationEmail(
+              orderDetails[0].email,
+              orderDetails[0].orderNumber,
+              payment.amount,
+              payment.currency,
+              payment.paymentMethod,
+              payment.transactionId
+            );
+          }
+        }
+      } catch (error) {
+        logger.error(
+          { error, paymentId, orderId: payment.orderId },
+          'Failed to send payment confirmation email after manual verification'
+        );
+      }
+    });
 
     logger.info(
       { paymentId, adminId, note },

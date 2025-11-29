@@ -9,17 +9,20 @@ import { z } from 'zod';
 
 /**
  * Payment configuration schema with validation rules
+ * In test mode, allows empty strings for credentials
  */
+const isTestMode = process.env.NODE_ENV === 'test' || process.env.BUN_ENV === 'test';
+
 const paymentConfigSchema = z.object({
   promptpay: z.object({
-    merchantId: z.string().min(1, 'PromptPay merchant ID is required'),
-    webhookSecret: z.string().min(1, 'PromptPay webhook secret is required'),
+    merchantId: isTestMode ? z.string() : z.string().min(1, 'PromptPay merchant ID is required'),
+    webhookSecret: isTestMode ? z.string() : z.string().min(1, 'PromptPay webhook secret is required'),
   }),
   twoC2P: z.object({
-    merchantId: z.string().min(1, '2C2P merchant ID is required'),
-    secretKey: z.string().min(1, '2C2P secret key is required'),
-    apiUrl: z.string().url('2C2P API URL must be a valid URL'),
-    webhookSecret: z.string().min(1, '2C2P webhook secret is required'),
+    merchantId: isTestMode ? z.string() : z.string().min(1, '2C2P merchant ID is required'),
+    secretKey: isTestMode ? z.string() : z.string().min(1, '2C2P secret key is required'),
+    apiUrl: z.string().url('2C2P API URL must be a valid URL').default('https://api.2c2p.com'),
+    webhookSecret: isTestMode ? z.string() : z.string().min(1, '2C2P webhook secret is required'),
   }),
   settings: z.object({
     qrExpiryMinutes: z.number().int().positive().default(15),
