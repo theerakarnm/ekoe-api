@@ -192,6 +192,38 @@ export class CustomersRepository {
       throw new AppError('Failed to fetch default address', 500, 'DB_ERROR', { userId, error });
     }
   }
+
+  // Order Operations
+  async findOrdersByUserId(userId: string, params: { page: number; limit: number }) {
+    try {
+      const { orders } = await import('../../core/database/schema/orders.schema');
+      const { desc, sql } = await import('drizzle-orm');
+      
+      const { page, limit } = params;
+      const offset = (page - 1) * limit;
+
+      // Get total count
+      const countResult = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(orders)
+        .where(eq(orders.userId, userId));
+
+      const total = Number(countResult[0]?.count || 0);
+
+      // Get orders
+      const result = await db
+        .select()
+        .from(orders)
+        .where(eq(orders.userId, userId))
+        .orderBy(desc(orders.createdAt))
+        .limit(limit)
+        .offset(offset);
+
+      return { orders: result, total, page, limit };
+    } catch (error) {
+      throw new AppError('Failed to fetch customer orders', 500, 'DB_ERROR', { userId, error });
+    }
+  }
 }
 
 export const customersRepository = new CustomersRepository();

@@ -92,6 +92,20 @@ customersRoutes.delete('/me/addresses/:id', async (c) => {
   return ResponseBuilder.noContent(c);
 });
 
+// Order history endpoint
+customersRoutes.get('/me/orders', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const page = parseInt(c.req.query('page') || '1');
+  const limit = parseInt(c.req.query('limit') || '10');
+
+  const orders = await customersRepository.findOrdersByUserId(user.id, { page, limit });
+  return ResponseBuilder.success(c, orders);
+});
+
 // Email verification endpoint
 customersRoutes.post('/me/resend-verification', async (c) => {
   const user = c.get('user');
