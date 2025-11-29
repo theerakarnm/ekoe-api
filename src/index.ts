@@ -7,7 +7,18 @@ import { ResponseBuilder } from './core/response';
 import { errorMiddleware } from './middleware/error.middleware';
 import { loggerMiddleware } from './middleware/logger.middleware';
 import { validateOrigin, securityHeaders } from './middleware/csrf.middleware';
+import { initializePromptPayClient } from './libs/promptpay-client';
 import router from './routes';
+
+// Initialize payment clients
+if (config.payment.promptpay.merchantId) {
+  initializePromptPayClient({
+    merchantId: config.payment.promptpay.merchantId,
+  });
+  logger.info('PromptPay client initialized');
+} else {
+  logger.warn('PromptPay merchant ID not configured');
+}
 
 const app = new Hono();
 

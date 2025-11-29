@@ -23,5 +23,12 @@ export const config = {
   web: {
     url: process.env.WEB_URL || 'http://localhost:5173',
   },
+  payment: {
+    promptpay: {
+      merchantId: process.env.PROMPTPAY_MERCHANT_ID || '',
+      webhookSecret: process.env.PROMPTPAY_WEBHOOK_SECRET || '',
+    },
+    qrExpiryMinutes: Number(process.env.PAYMENT_QR_EXPIRY_MINUTES) || 15,
+  },
   env: process.env.NODE_ENV || 'development',
 };

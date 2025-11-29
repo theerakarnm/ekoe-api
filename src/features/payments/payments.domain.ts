@@ -3,12 +3,13 @@ import { ordersRepository } from '../orders/orders.repository';
 import { db } from '../../core/database';
 import { orders } from '../../core/database/schema/orders.schema';
 import { eq } from 'drizzle-orm';
-import { ValidationError, NotFoundError, AppError } from '../../core/errors';
+import { ValidationError, NotFoundError } from '../../core/errors';
 import { emailService } from '../../core/email';
 import { logger } from '../../core/logger';
+import { config } from '../../core/config';
+import { getPromptPayClient } from '../../libs/promptpay-client';
 import crypto from 'crypto';
 import type {
-  CreatePaymentData,
   PaymentStatus,
   PaymentStatusResponse,
   PromptPayWebhookPayload,
@@ -27,6 +28,68 @@ export class PaymentsDomain {
     if (amount <= 0) {
       throw new ValidationError('Payment amount must be greater than zero');
     }
+  }
+
+  /**
+   * Process PromptPay payment
+   * Creates payment record and generates QR code
+   */
+  async processPromptPayPayment(
+    orderId: string,
+    amount: number
+  ): Promise<{ paymentId: string; qrCode: string; expiresAt: Date }> {
+    // Validate input
+    this.validatePaymentData(orderId, amount);
+
+    // Verify order exists and is unpaid
+    const order = await ordersRepository.getOrderById(orderId);
+    if (!order) {
+      throw new NotFoundError('Order');
+    }
+
+    if (order.paymentStatus === 'paid') {
+      throw new ValidationError('Order is already paid');
+    }
+
+    // Verify amount matches order total
+    if (amount !== order.totalAmount) {
+      throw new ValidationError('Payment amount does not match order total');
+    }
+
+    // Create payment record
+    const payment = await paymentsRepository.createPayment({
+      orderId,
+      paymentMethod: 'promptpay',
+      paymentProvider: 'promptpay',
+      amount,
+      currency: 'THB',
+    });
+
+    // Generate QR code
+    const promptPayClient = getPromptPayClient();
+    // Convert amount from cents to THB for QR code generation
+    const amountInTHB = amount / 100;
+    const qrCode = await promptPayClient.generateQRCode(
+      amountInTHB,
+      payment.id
+    );
+
+    // Calculate expiration time
+    const expiresAt = new Date();
+    expiresAt.setMinutes(
+      expiresAt.getMinutes() + config.payment.qrExpiryMinutes
+    );
+
+    logger.info(
+      { paymentId: payment.id, orderId, amount, expiresAt },
+      'PromptPay payment created'
+    );
+
+    return {
+      paymentId: payment.id,
+      qrCode,
+      expiresAt,
+    };
   }
 
   /**
