@@ -23,18 +23,8 @@ export const config = {
   web: {
     url: process.env.WEB_URL || 'http://localhost:5173',
   },
-  payment: {
-    promptpay: {
-      merchantId: process.env.PROMPTPAY_MERCHANT_ID || '',
-      webhookSecret: process.env.PROMPTPAY_WEBHOOK_SECRET || '',
-    },
-    twoC2P: {
-      merchantId: process.env.TWOC2P_MERCHANT_ID || '',
-      secretKey: process.env.TWOC2P_SECRET_KEY || '',
-      apiUrl: process.env.TWOC2P_API_URL || 'https://api.2c2p.com',
-      webhookSecret: process.env.TWOC2P_WEBHOOK_SECRET || '',
-    },
-    qrExpiryMinutes: Number(process.env.PAYMENT_QR_EXPIRY_MINUTES) || 15,
-  },
   env: process.env.NODE_ENV || 'development',
 };
+
+// Export payment configuration module
+export * from './payment.config';

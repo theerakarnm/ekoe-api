@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm';
 import { ValidationError, NotFoundError } from '../../core/errors';
 import { emailService } from '../../core/email';
 import { logger } from '../../core/logger';
-import { config } from '../../core/config';
+import { paymentConfig, getPaymentExpiryDate } from '../../core/config/payment.config';
 import { getPromptPayClient } from '../../libs/promptpay-client';
 import { getTwoC2PClient } from '../../libs/2c2p-client';
 import crypto from 'crypto';
@@ -75,11 +75,8 @@ export class PaymentsDomain {
       payment.id
     );
 
-    // Calculate expiration time
-    const expiresAt = new Date();
-    expiresAt.setMinutes(
-      expiresAt.getMinutes() + config.payment.qrExpiryMinutes
-    );
+    // Calculate expiration time using payment config helper
+    const expiresAt = getPaymentExpiryDate();
 
     logger.info(
       { paymentId: payment.id, orderId, amount, expiresAt },
@@ -135,9 +132,9 @@ export class PaymentsDomain {
 
     // Initialize 2C2P client
     const twoC2PClient = getTwoC2PClient({
-      merchantId: config.payment.twoC2P.merchantId,
-      secretKey: config.payment.twoC2P.secretKey,
-      apiUrl: config.payment.twoC2P.apiUrl,
+      merchantId: paymentConfig.twoC2P.merchantId,
+      secretKey: paymentConfig.twoC2P.secretKey,
+      apiUrl: paymentConfig.twoC2P.apiUrl,
     });
 
     // Create payment session with 2C2P
@@ -412,9 +409,9 @@ export class PaymentsDomain {
   ): Promise<void> {
     // Initialize 2C2P client for signature verification
     const twoC2PClient = getTwoC2PClient({
-      merchantId: config.payment.twoC2P.merchantId,
-      secretKey: config.payment.twoC2P.secretKey,
-      apiUrl: config.payment.twoC2P.apiUrl,
+      merchantId: paymentConfig.twoC2P.merchantId,
+      secretKey: paymentConfig.twoC2P.secretKey,
+      apiUrl: paymentConfig.twoC2P.apiUrl,
     });
 
     // Verify webhook signature using 2C2P client
