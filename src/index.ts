@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { config } from './core/config';
+import { paymentConfig, isPromptPayConfigured } from './core/config/payment.config';
 import { checkDbConnection } from './core/database';
 import logger from './core/logger';
 import { ResponseBuilder } from './core/response';
@@ -11,9 +12,9 @@ import { initializePromptPayClient } from './libs/promptpay-client';
 import router from './routes';
 
 // Initialize payment clients
-if (config.payment.promptpay.merchantId) {
+if (isPromptPayConfigured()) {
   initializePromptPayClient({
-    merchantId: config.payment.promptpay.merchantId,
+    merchantId: paymentConfig.promptpay.merchantId,
   });
   logger.info('PromptPay client initialized');
 } else {

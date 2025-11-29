@@ -11,7 +11,7 @@ import {
 } from '../features/payments/payments.interface';
 import { auth } from '../libs/auth';
 import { logger } from '../core/logger';
-import { config } from '../core/config';
+import { paymentConfig } from '../core/config/payment.config';
 
 const paymentsRoutes = new Hono<{
   Variables: {
@@ -155,7 +155,7 @@ paymentsRoutes.post('/webhooks/promptpay', async (c) => {
     await paymentsDomain.handlePromptPayWebhook(
       payload,
       signature,
-      config.payment.promptpay.webhookSecret
+      paymentConfig.promptpay.webhookSecret
     );
 
     logger.info(
