@@ -1,8 +1,78 @@
 import { productsRepository } from './products.repository';
-import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, InventoryValidationResult } from './products.interface';
+import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, InventoryValidationResult, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
 import { ValidationError } from '../../core/errors';
 
 export class ProductsDomain {
+  /**
+   * Validate and sanitize filter parameters
+   */
+  private validateFilters(params: ProductFilterParams): ProductFilterParams {
+    const validated: ProductFilterParams = {};
+
+    // Validate search query
+    if (params.search) {
+      const trimmed = params.search.trim();
+      if (trimmed.length > 0) {
+        // Limit search query to 100 characters
+        validated.search = trimmed.substring(0, 100);
+      }
+    }
+
+    // Validate category IDs array
+    if (params.categories) {
+      const categoryArray = Array.isArray(params.categories) 
+        ? params.categories 
+        : [params.categories];
+      
+      // Filter out invalid category IDs (empty strings, non-strings)
+      const validCategories = categoryArray.filter(
+        id => typeof id === 'string' && id.trim().length > 0
+      );
+      
+      if (validCategories.length > 0) {
+        validated.categories = validCategories;
+      }
+    }
+
+    // Validate price range (non-negative numbers)
+    if (params.minPrice !== undefined) {
+      const min = Number(params.minPrice);
+      if (!isNaN(min) && min >= 0) {
+        validated.minPrice = min;
+      }
+    }
+
+    if (params.maxPrice !== undefined) {
+      const max = Number(params.maxPrice);
+      if (!isNaN(max) && max >= 0) {
+        validated.maxPrice = max;
+      }
+    }
+
+    // Validate pagination parameters
+    // Page must be >= 1
+    const page = Number(params.page);
+    validated.page = !isNaN(page) && page >= 1 ? page : 1;
+
+    // Limit must be between 1 and 100
+    const limit = Number(params.limit);
+    if (!isNaN(limit) && limit >= 1 && limit <= 100) {
+      validated.limit = limit;
+    } else {
+      validated.limit = 24; // Default limit
+    }
+
+    // Validate sort parameters
+    if (params.sortBy && ['price', 'createdAt', 'name'].includes(params.sortBy)) {
+      validated.sortBy = params.sortBy;
+    }
+
+    if (params.sortOrder && ['asc', 'desc'].includes(params.sortOrder)) {
+      validated.sortOrder = params.sortOrder;
+    }
+
+    return validated;
+  }
   async getAllProducts(params: {
     page: number;
     limit: number;
@@ -72,6 +142,75 @@ export class ProductsDomain {
       results,
       errors,
     };
+  }
+
+  /**
+   * Get products with filters, validation, and pagination
+   */
+  async getProductsWithFilters(params: ProductFilterParams): Promise<PaginatedProducts> {
+    try {
+      // Validate and sanitize filter parameters
+      const validatedParams = this.validateFilters(params);
+      
+      // Call repository with validated parameters
+      const result = await productsRepository.getProductsWithFilters(validatedParams);
+      
+      // Format response with pagination metadata
+      return {
+        data: result.data,
+        pagination: {
+          page: result.pagination.page,
+          limit: result.pagination.limit,
+          total: result.pagination.total,
+          totalPages: result.pagination.totalPages
+        }
+      };
+    } catch (error) {
+      // Handle edge cases and errors
+      if (error instanceof ValidationError) {
+        throw error;
+      }
+      
+      // Log unexpected errors and rethrow
+      console.error('Error fetching products with filters:', error);
+      throw new Error('Failed to fetch products');
+    }
+  }
+
+  /**
+   * Get all available product categories
+   */
+  async getCategories(): Promise<Category[]> {
+    try {
+      const categories = await productsRepository.getCategories();
+      
+      // Add any necessary business logic or formatting
+      // For now, return categories as-is
+      return categories;
+    } catch (error) {
+      console.error('Error fetching categories:', error);
+      throw new Error('Failed to fetch categories');
+    }
+  }
+
+  /**
+   * Get price range for filter UI
+   */
+  async getPriceRange(): Promise<PriceRange> {
+    try {
+      const priceRange = await productsRepository.getPriceRange();
+      
+      // Add any necessary business logic or formatting
+      // Ensure min is not greater than max
+      if (priceRange.min > priceRange.max) {
+        return { min: 0, max: 0 };
+      }
+      
+      return priceRange;
+    } catch (error) {
+      console.error('Error fetching price range:', error);
+      throw new Error('Failed to fetch price range');
+    }
   }
 }
 
