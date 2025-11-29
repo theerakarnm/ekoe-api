@@ -56,3 +56,40 @@ export const validateInventorySchema = z.object({
     quantity: z.number().min(1),
   })),
 });
+
+// Product filtering types
+export interface ProductFilterParams {
+  search?: string;
+  categories?: string[];
+  minPrice?: number;
+  maxPrice?: number;
+  page?: number;
+  limit?: number;
+  sortBy?: 'price' | 'createdAt' | 'name';
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaginatedProducts {
+  data: any[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface Category {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  imageUrl: string | null;
+  sortOrder: number | null;
+  isActive: boolean | null;
+}
+
+export interface PriceRange {
+  min: number;
+  max: number;
+}

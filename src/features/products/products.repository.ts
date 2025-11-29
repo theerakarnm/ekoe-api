@@ -1,8 +1,8 @@
 import { db } from '../../core/database';
 import { products, productVariants, productImages, productCategories, productTags, categories } from '../../core/database/schema/products.schema';
-import { eq, ilike, and, sql, desc, asc, isNull, or, inArray, gte } from 'drizzle-orm';
+import { eq, ilike, and, sql, desc, asc, isNull, or, inArray, gte, lte, count } from 'drizzle-orm';
 import { NotFoundError, ValidationError } from '../../core/errors';
-import type { CreateProductInput, UpdateProductInput, InventoryValidationItem } from './products.interface';
+import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
 
 export class ProductsRepository {
   async findAll(params: {
@@ -302,6 +302,182 @@ export class ProductsRepository {
     }
 
     return validationResults;
+  }
+
+  /**
+   * Get products with advanced filtering and pagination
+   */
+  async getProductsWithFilters(params: ProductFilterParams): Promise<PaginatedProducts> {
+    const {
+      search,
+      categories: categoryIds,
+      minPrice,
+      maxPrice,
+      page = 1,
+      limit = 24,
+      sortBy = 'createdAt',
+      sortOrder = 'desc'
+    } = params;
+
+    // Build dynamic WHERE clause
+    const conditions = [isNull(products.deletedAt), eq(products.status, 'active')];
+    
+    // Search across name, description, and tags
+    if (search) {
+      conditions.push(
+        or(
+          ilike(products.name, `%${search}%`),
+          ilike(products.description, `%${search}%`),
+          ilike(products.shortDescription, `%${search}%`)
+        )!
+      );
+    }
+    
+    // Price range filtering
+    if (minPrice !== undefined) {
+      conditions.push(gte(products.basePrice, minPrice));
+    }
+    
+    if (maxPrice !== undefined) {
+      conditions.push(lte(products.basePrice, maxPrice));
+    }
+
+    const whereClause = and(...conditions);
+
+    // If category filtering is needed, we need to join with productCategories
+    let query;
+    let countQuery;
+
+    if (categoryIds && categoryIds.length > 0) {
+      // Query with category filtering
+      query = db
+        .selectDistinct({
+          id: products.id,
+          name: products.name,
+          slug: products.slug,
+          subtitle: products.subtitle,
+          description: products.description,
+          shortDescription: products.shortDescription,
+          basePrice: products.basePrice,
+          compareAtPrice: products.compareAtPrice,
+          productType: products.productType,
+          status: products.status,
+          featured: products.featured,
+          metaTitle: products.metaTitle,
+          metaDescription: products.metaDescription,
+          rating: products.rating,
+          reviewCount: products.reviewCount,
+          viewCount: products.viewCount,
+          soldCount: products.soldCount,
+          trackInventory: products.trackInventory,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt,
+          publishedAt: products.publishedAt,
+          deletedAt: products.deletedAt,
+        })
+        .from(products)
+        .innerJoin(productCategories, eq(products.id, productCategories.productId))
+        .where(
+          and(
+            whereClause,
+            inArray(productCategories.categoryId, categoryIds)
+          )
+        );
+
+      countQuery = db
+        .selectDistinct({ productId: products.id })
+        .from(products)
+        .innerJoin(productCategories, eq(products.id, productCategories.productId))
+        .where(
+          and(
+            whereClause,
+            inArray(productCategories.categoryId, categoryIds)
+          )
+        );
+    } else {
+      // Query without category filtering
+      query = db
+        .select()
+        .from(products)
+        .where(whereClause);
+
+      countQuery = db
+        .select({ count: count() })
+        .from(products)
+        .where(whereClause);
+    }
+
+    // Apply sorting
+    const orderByColumn = sortBy === 'name' ? products.name :
+      sortBy === 'price' ? products.basePrice :
+        products.createdAt;
+
+    const orderByFn = sortOrder === 'asc' ? asc : desc;
+
+    // Execute query with pagination
+    const offset = (page - 1) * limit;
+    
+    const [items, totalCountResult] = await Promise.all([
+      query
+        .orderBy(orderByFn(orderByColumn))
+        .limit(limit)
+        .offset(offset),
+      countQuery
+    ]);
+
+    // Calculate total count
+    let total: number;
+    if (categoryIds && categoryIds.length > 0) {
+      // For category queries, count distinct products
+      total = totalCountResult.length;
+    } else {
+      // For non-category queries, use the count result
+      total = Number((totalCountResult[0] as any)?.count || 0);
+    }
+
+    return {
+      data: items,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    };
+  }
+
+  /**
+   * Get all available product categories
+   */
+  async getCategories(): Promise<Category[]> {
+    return db
+      .select()
+      .from(categories)
+      .where(eq(categories.isActive, true))
+      .orderBy(asc(categories.name));
+  }
+
+  /**
+   * Get min and max prices for price range filter
+   */
+  async getPriceRange(): Promise<PriceRange> {
+    const result = await db
+      .select({
+        min: sql<number>`MIN(${products.basePrice})`,
+        max: sql<number>`MAX(${products.basePrice})`
+      })
+      .from(products)
+      .where(
+        and(
+          isNull(products.deletedAt),
+          eq(products.status, 'active')
+        )
+      );
+
+    return {
+      min: result[0]?.min || 0,
+      max: result[0]?.max || 0
+    };
   }
 }
 
