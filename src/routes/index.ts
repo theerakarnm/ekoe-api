@@ -5,6 +5,7 @@ import productsRoutes from './products.routes';
 import ordersRoutes from './orders.routes';
 import customersRoutes from './customers.routes';
 import analyticsRoutes from './analytics.routes';
+import paymentsRoutes from './payments.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 import { 
@@ -92,5 +93,8 @@ router.route('/', ordersRoutes);
 
 // Analytics routes (includes /admin/analytics and /admin/dashboard paths)
 router.route('/', analyticsRoutes);
+
+// Payment routes (includes /payments, /webhooks, and /admin/payments paths)
+router.route('/', paymentsRoutes);
 
 export default router;
