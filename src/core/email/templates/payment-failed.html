@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Payment Confirmation</title>
+    <title>Payment Failed</title>
     <style>
       @media only screen and (max-width: 600px) {
         .email-container {
@@ -23,11 +23,11 @@
           <table role="presentation" class="email-container" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
             <!-- Header -->
             <tr>
-              <td style="padding: 40px 40px 20px 40px; text-align: center; background: linear-gradient(135deg, #28a745 0%, #20c997 100%); border-radius: 8px 8px 0 0;">
+              <td style="padding: 40px 40px 20px 40px; text-align: center; background: linear-gradient(135deg, #dc3545 0%, #c82333 100%); border-radius: 8px 8px 0 0;">
                 <div style="width: 60px; height: 60px; margin: 0 auto 20px; background-color: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
-                  <span style="font-size: 32px; color: #ffffff;">✓</span>
+                  <span style="font-size: 32px; color: #ffffff;">✗</span>
                 </div>
-                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Payment Confirmed</h1>
+                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Payment Failed</h1>
               </td>
             </tr>
             
@@ -35,7 +35,7 @@
             <tr>
               <td class="content-padding" style="padding: 40px;">
                 <p style="margin: 0 0 24px 0; color: #333333; font-size: 16px; line-height: 1.6;">
-                  Great news! Your payment has been successfully processed.
+                  We're sorry, but we were unable to process your payment.
                 </p>
                 
                 <!-- Payment Details Card -->
@@ -56,7 +56,7 @@
                         <span style="color: #6c757d; font-size: 14px;">Payment Amount</span>
                       </td>
                       <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
-                        <strong style="color: #28a745; font-size: 16px;">{{PAYMENT_AMOUNT}} {{CURRENCY}}</strong>
+                        <strong style="color: #333333; font-size: 16px;">{{PAYMENT_AMOUNT}} {{CURRENCY}}</strong>
                       </td>
                     </tr>
                     <tr>
@@ -69,34 +69,48 @@
                     </tr>
                     <tr>
                       <td style="padding: 12px 0;">
-                        <span style="color: #6c757d; font-size: 14px;">Transaction ID</span>
+                        <span style="color: #6c757d; font-size: 14px;">Failure Reason</span>
                       </td>
                       <td style="padding: 12px 0; text-align: right;">
-                        <span style="color: #6c757d; font-size: 12px; font-family: monospace;">{{TRANSACTION_ID}}</span>
+                        <span style="color: #dc3545; font-size: 14px; font-weight: 500;">{{FAILURE_REASON}}</span>
                       </td>
                     </tr>
                   </table>
                 </div>
                 
-                <!-- Status Message -->
-                <div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                  <p style="margin: 0; color: #155724; font-size: 14px; line-height: 1.5;">
-                    <strong>✓ Order Confirmed</strong><br>
-                    Your order is now being processed and will be shipped soon. We'll send you another email with tracking information once your order ships.
+                <!-- Error Message -->
+                <div style="background-color: #f8d7da; border-left: 4px solid #dc3545; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #721c24; font-size: 14px; line-height: 1.5;">
+                    <strong>What happened?</strong><br>
+                    Your payment could not be completed. This may be due to insufficient funds, an incorrect card number, or your bank declining the transaction.
                   </p>
                 </div>
                 
-                <!-- CTA Button -->
+                <!-- Next Steps -->
+                <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                  <p style="margin: 0 0 12px 0; color: #856404; font-size: 14px; line-height: 1.5;">
+                    <strong>What can you do?</strong>
+                  </p>
+                  <ul style="margin: 0; padding-left: 20px; color: #856404; font-size: 14px; line-height: 1.6;">
+                    <li>Check your payment details and try again</li>
+                    <li>Try a different payment method</li>
+                    <li>Contact your bank if the issue persists</li>
+                    <li>Reach out to our support team for assistance</li>
+                  </ul>
+                </div>
+                
+                <!-- CTA Buttons -->
                 <table role="presentation" style="margin: 32px 0;">
                   <tr>
                     <td align="center">
-                      <a href="{{ORDER_DETAILS_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #28a745; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(40,167,69,0.2);">View Order Details</a>
+                      <a href="{{RETRY_PAYMENT_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #dc3545; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(220,53,69,0.2); margin: 0 8px 8px 0;">Retry Payment</a>
+                      <a href="{{ORDER_DETAILS_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #6c757d; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(108,117,125,0.2); margin: 0 0 8px 8px;">View Order</a>
                     </td>
                   </tr>
                 </table>
                 
                 <p style="margin: 24px 0 0 0; color: #6c757d; font-size: 14px; line-height: 1.6;">
-                  If you have any questions about your order, please don't hesitate to contact our customer support team.
+                  If you continue to experience issues or have questions, please contact our customer support team. We're here to help!
                 </p>
               </td>
             </tr>
@@ -105,7 +119,7 @@
             <tr>
               <td style="padding: 24px 40px; border-top: 1px solid #e9ecef; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
                 <p style="margin: 0 0 8px 0; color: #6c757d; font-size: 12px; line-height: 1.5; text-align: center;">
-                  Thank you for shopping with us!
+                  Need help? Contact our support team
                 </p>
                 <p style="margin: 0; color: #adb5bd; font-size: 11px; line-height: 1.5; text-align: center;">
                   This is an automated email. Please do not reply to this message.

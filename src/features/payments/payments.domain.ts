@@ -250,7 +250,16 @@ export class PaymentsDomain {
       // Send confirmation email (outside transaction to avoid blocking)
       setImmediate(async () => {
         try {
-          await this.sendPaymentConfirmationEmail(payment, order);
+          if (order && emailService.isEnabled()) {
+            await emailService.sendPaymentConfirmationEmail(
+              order.email,
+              order.orderNumber,
+              payment.amount,
+              payment.currency,
+              payment.paymentMethod,
+              payment.transactionId
+            );
+          }
         } catch (error) {
           logger.error(
             { error, paymentId, orderId: payment.orderId },
@@ -296,7 +305,16 @@ export class PaymentsDomain {
       // Send failure notification email
       setImmediate(async () => {
         try {
-          await this.sendPaymentFailedEmail(payment, order, reason);
+          if (order && emailService.isEnabled()) {
+            await emailService.sendPaymentFailedEmail(
+              order.email,
+              order.orderNumber,
+              payment.amount,
+              payment.currency,
+              payment.paymentMethod,
+              reason
+            );
+          }
         } catch (error) {
           logger.error(
             { error, paymentId, orderId: payment.orderId },
@@ -579,233 +597,6 @@ export class PaymentsDomain {
     );
   }
 
-  /**
-   * Send payment confirmation email
-   */
-  private async sendPaymentConfirmationEmail(
-    payment: any,
-    order: any
-  ): Promise<void> {
-    if (!emailService.isEnabled()) {
-      logger.warn('Email service not configured, skipping confirmation email');
-      return;
-    }
-
-    const subject = `Payment Confirmation - Order ${order.orderNumber}`;
-    const html = this.getPaymentConfirmationEmailTemplate(payment, order);
-
-    await emailService.sendEmail(order.email, subject, html);
-  }
-
-  /**
-   * Send payment failed email
-   */
-  private async sendPaymentFailedEmail(
-    payment: any,
-    order: any,
-    reason: string
-  ): Promise<void> {
-    if (!emailService.isEnabled()) {
-      logger.warn('Email service not configured, skipping failure email');
-      return;
-    }
-
-    const subject = `Payment Failed - Order ${order.orderNumber}`;
-    const html = this.getPaymentFailedEmailTemplate(payment, order, reason);
-
-    await emailService.sendEmail(order.email, subject, html);
-  }
-
-  /**
-   * Payment confirmation email template
-   */
-  private getPaymentConfirmationEmailTemplate(
-    payment: any,
-    order: any
-  ): string {
-    const amount = (payment.amount / 100).toFixed(2);
-    const paymentMethod = payment.paymentMethod.replace('_', ' ').toUpperCase();
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Payment Confirmation</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-          <table role="presentation" style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td align="center" style="padding: 40px 0;">
-                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                      <h1 style="margin: 0; color: #28a745; font-size: 24px; font-weight: bold;">✓ Payment Confirmed</h1>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="padding: 20px 40px;">
-                      <p style="margin: 0 0 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
-                        Your payment has been successfully processed!
-                      </p>
-                      
-                      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Order Number:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${order.orderNumber}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Payment Amount:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${amount} ${payment.currency}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Payment Method:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${paymentMethod}
-                          </td>
-                        </tr>
-                        ${
-                          payment.transactionId
-                            ? `
-                        <tr>
-                          <td style="padding: 10px 0;">
-                            <strong style="color: #333333;">Transaction ID:</strong>
-                          </td>
-                          <td style="padding: 10px 0; text-align: right; color: #666666;">
-                            ${payment.transactionId}
-                          </td>
-                        </tr>
-                        `
-                            : ''
-                        }
-                      </table>
-                      
-                      <p style="margin: 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
-                        Your order is now being processed and will be shipped soon.
-                      </p>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="padding: 30px 40px; border-top: 1px solid #eeeeee;">
-                      <p style="margin: 0; color: #999999; font-size: 12px; line-height: 1.5;">
-                        Thank you for your purchase!
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
-    `;
-  }
-
-  /**
-   * Payment failed email template
-   */
-  private getPaymentFailedEmailTemplate(
-    payment: any,
-    order: any,
-    reason: string
-  ): string {
-    const amount = (payment.amount / 100).toFixed(2);
-    const paymentMethod = payment.paymentMethod.replace('_', ' ').toUpperCase();
-
-    return `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <title>Payment Failed</title>
-        </head>
-        <body style="margin: 0; padding: 0; font-family: Arial, sans-serif; background-color: #f4f4f4;">
-          <table role="presentation" style="width: 100%; border-collapse: collapse;">
-            <tr>
-              <td align="center" style="padding: 40px 0;">
-                <table role="presentation" style="width: 600px; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                  <tr>
-                    <td style="padding: 40px 40px 20px 40px; text-align: center;">
-                      <h1 style="margin: 0; color: #dc3545; font-size: 24px; font-weight: bold;">✗ Payment Failed</h1>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="padding: 20px 40px;">
-                      <p style="margin: 0 0 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
-                        Unfortunately, your payment could not be processed.
-                      </p>
-                      
-                      <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Order Number:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${order.orderNumber}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Payment Amount:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${amount} ${payment.currency}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee;">
-                            <strong style="color: #333333;">Payment Method:</strong>
-                          </td>
-                          <td style="padding: 10px 0; border-bottom: 1px solid #eeeeee; text-align: right; color: #666666;">
-                            ${paymentMethod}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td style="padding: 10px 0;">
-                            <strong style="color: #333333;">Reason:</strong>
-                          </td>
-                          <td style="padding: 10px 0; text-align: right; color: #dc3545;">
-                            ${reason}
-                          </td>
-                        </tr>
-                      </table>
-                      
-                      <p style="margin: 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
-                        Please try again or use a different payment method. If the problem persists, contact our support team.
-                      </p>
-                    </td>
-                  </tr>
-                  
-                  <tr>
-                    <td style="padding: 30px 40px; border-top: 1px solid #eeeeee;">
-                      <p style="margin: 0; color: #999999; font-size: 12px; line-height: 1.5;">
-                        Need help? Contact our support team.
-                      </p>
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-          </table>
-        </body>
-      </html>
-    `;
-  }
 }
 
 export const paymentsDomain = new PaymentsDomain();
