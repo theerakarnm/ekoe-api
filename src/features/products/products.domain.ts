@@ -20,15 +20,15 @@ export class ProductsDomain {
 
     // Validate category IDs array
     if (params.categories) {
-      const categoryArray = Array.isArray(params.categories) 
-        ? params.categories 
+      const categoryArray = Array.isArray(params.categories)
+        ? params.categories
         : [params.categories];
-      
+
       // Filter out invalid category IDs (empty strings, non-strings)
       const validCategories = categoryArray.filter(
         id => typeof id === 'string' && id.trim().length > 0
       );
-      
+
       if (validCategories.length > 0) {
         validated.categories = validCategories;
       }
@@ -109,9 +109,22 @@ export class ProductsDomain {
   async getRelatedProducts(productId: string, limit: number = 4) {
     // First verify the product exists
     await productsRepository.findById(productId);
-    
+
     // Get related products based on shared categories
     return await productsRepository.getRelatedProducts(productId, limit);
+  }
+
+  async updateProductImage(imageId: string, data: {
+    altText?: string;
+    description?: string;
+    sortOrder?: number;
+    isPrimary?: boolean;
+  }) {
+    return await productsRepository.updateImage(imageId, data);
+  }
+
+  async deleteProductImage(imageId: string) {
+    return await productsRepository.deleteImage(imageId);
   }
 
   async validateInventory(items: InventoryValidationItem[]): Promise<{
@@ -124,14 +137,14 @@ export class ProductsDomain {
     }
 
     const results = await productsRepository.validateInventory(items);
-    
+
     // Check if all items are available
     const unavailableItems = results.filter(r => !r.isAvailable);
     const isValid = unavailableItems.length === 0;
-    
+
     // Generate detailed error messages
     const errors = unavailableItems.map(item => {
-      const productInfo = item.variantId 
+      const productInfo = item.variantId
         ? `Product ${item.productId} (variant ${item.variantId})`
         : `Product ${item.productId}`;
       return `${productInfo}: ${item.message}`;
@@ -151,10 +164,10 @@ export class ProductsDomain {
     try {
       // Validate and sanitize filter parameters
       const validatedParams = this.validateFilters(params);
-      
+
       // Call repository with validated parameters
       const result = await productsRepository.getProductsWithFilters(validatedParams);
-      
+
       // Format response with pagination metadata
       return {
         data: result.data,
@@ -170,7 +183,7 @@ export class ProductsDomain {
       if (error instanceof ValidationError) {
         throw error;
       }
-      
+
       // Log unexpected errors and rethrow
       console.error('Error fetching products with filters:', error);
       throw new Error('Failed to fetch products');
@@ -183,7 +196,7 @@ export class ProductsDomain {
   async getCategories(): Promise<Category[]> {
     try {
       const categories = await productsRepository.getCategories();
-      
+
       // Add any necessary business logic or formatting
       // For now, return categories as-is
       return categories;
@@ -199,13 +212,13 @@ export class ProductsDomain {
   async getPriceRange(): Promise<PriceRange> {
     try {
       const priceRange = await productsRepository.getPriceRange();
-      
+
       // Add any necessary business logic or formatting
       // Ensure min is not greater than max
       if (priceRange.min > priceRange.max) {
         return { min: 0, max: 0 };
       }
-      
+
       return priceRange;
     } catch (error) {
       console.error('Error fetching price range:', error);

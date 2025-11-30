@@ -134,7 +134,7 @@ customersRoutes.post('/me/resend-verification', async (c) => {
     // Note: Better-auth handles verification token generation internally
     // We'll need to trigger the verification email through better-auth's API
     const verificationUrl = `${c.req.url.split('/api')[0]}/auth/verify-email?token=${user.id}`;
-    
+
     const sent = await emailService.sendVerificationEmail(
       user.email,
       user.name || 'Customer',

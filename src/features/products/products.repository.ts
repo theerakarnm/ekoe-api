@@ -178,6 +178,54 @@ export class ProductsRepository {
       .orderBy(asc(productImages.sortOrder));
   }
 
+  async updateImage(imageId: string, data: {
+    altText?: string;
+    description?: string;
+    sortOrder?: number;
+    isPrimary?: boolean;
+  }) {
+    // If setting as primary, unset other primary images for this product
+    if (data.isPrimary) {
+      const image = await db
+        .select({ productId: productImages.productId })
+        .from(productImages)
+        .where(eq(productImages.id, imageId))
+        .limit(1);
+
+      if (image.length) {
+        await db
+          .update(productImages)
+          .set({ isPrimary: false })
+          .where(eq(productImages.productId, image[0].productId));
+      }
+    }
+
+    const result = await db
+      .update(productImages)
+      .set(data)
+      .where(eq(productImages.id, imageId))
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Product Image');
+    }
+
+    return result[0];
+  }
+
+  async deleteImage(imageId: string) {
+    const result = await db
+      .delete(productImages)
+      .where(eq(productImages.id, imageId))
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Product Image');
+    }
+
+    return result[0];
+  }
+
   async getRelatedProducts(productId: string, limit: number = 4) {
     // Get the product's categories
     const productCats = await db
@@ -321,7 +369,7 @@ export class ProductsRepository {
 
     // Build dynamic WHERE clause
     const conditions = [isNull(products.deletedAt), eq(products.status, 'active')];
-    
+
     // Search across name, description, and tags
     if (search) {
       conditions.push(
@@ -332,12 +380,12 @@ export class ProductsRepository {
         )!
       );
     }
-    
+
     // Price range filtering
     if (minPrice !== undefined) {
       conditions.push(gte(products.basePrice, minPrice));
     }
-    
+
     if (maxPrice !== undefined) {
       conditions.push(lte(products.basePrice, maxPrice));
     }
@@ -416,7 +464,7 @@ export class ProductsRepository {
 
     // Execute query with pagination
     const offset = (page - 1) * limit;
-    
+
     const [items, totalCountResult] = await Promise.all([
       query
         .orderBy(orderByFn(orderByColumn))

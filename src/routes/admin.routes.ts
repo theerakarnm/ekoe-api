@@ -13,6 +13,7 @@ import { dashboardDomain } from '../features/dashboard/dashboard.domain';
 import { usersDomain } from '../features/users/users.domain';
 import { getCustomersParamsSchema } from '../features/users/users.interface';
 import { auth } from '../libs/auth';
+import { storageService } from '../libs/storage';
 
 const adminRoutes = new Hono<{
   Variables: {
@@ -80,12 +81,20 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   // Verify product exists
   await productsDomain.getProductById(productId);
 
-  const body = await c.req.json();
-  const { url, altText, description, sortOrder = 0, isPrimary = false } = body;
+  const formData = await c.req.formData();
+  const imageFile = formData.get('image');
 
-  if (!url) {
-    return ResponseBuilder.error(c, 'Image URL is required', 400, 'VALIDATION_ERROR');
+  if (!imageFile || !(imageFile instanceof File)) {
+    return ResponseBuilder.error(c, 'Image file is required', 400, 'VALIDATION_ERROR');
   }
+
+  const altText = formData.get('altText') as string | undefined;
+  const description = formData.get('description') as string | undefined;
+  const sortOrder = formData.get('sortOrder') ? Number(formData.get('sortOrder')) : 0;
+  const isPrimary = formData.get('isPrimary') === 'true';
+
+  // Upload to R2
+  const url = await storageService.uploadFile(imageFile);
 
   const image = await productsRepository.addImage(productId, {
     url,
@@ -96,6 +105,28 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   });
 
   return ResponseBuilder.created(c, image);
+});
+
+// Update product image
+adminRoutes.put('/products/:id/images/:imageId', requireAdminAuth, async (c) => {
+  const imageId = c.req.param('imageId');
+  const body = await c.req.json();
+
+  const image = await productsDomain.updateProductImage(imageId, {
+    altText: body.altText,
+    description: body.description,
+    sortOrder: body.sortOrder,
+    isPrimary: body.isPrimary,
+  });
+
+  return ResponseBuilder.success(c, image);
+});
+
+// Delete product image
+adminRoutes.delete('/products/:id/images/:imageId', requireAdminAuth, async (c) => {
+  const imageId = c.req.param('imageId');
+  await productsDomain.deleteProductImage(imageId);
+  return ResponseBuilder.noContent(c);
 });
 
 // Blog post CRUD endpoints
