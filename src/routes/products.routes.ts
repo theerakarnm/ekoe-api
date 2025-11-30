@@ -13,24 +13,88 @@ const productsRoutes = new Hono<{
   };
 }>();
 
-// Public endpoint to list all active products (with optional auth for enhanced features)
+// Public endpoint to get all available product categories
+productsRoutes.get('/categories', optionalAuth, async (c) => {
+  // Call domain method to get categories
+  const categories = await productsDomain.getCategories();
+  
+  // Return categories array
+  return ResponseBuilder.success(c, categories);
+});
+
+// Public endpoint to get price range for filters
+productsRoutes.get('/price-range', optionalAuth, async (c) => {
+  // Call domain method to get price range
+  const priceRange = await productsDomain.getPriceRange();
+  
+  // Return min and max prices
+  return ResponseBuilder.success(c, priceRange);
+});
+
+// Public endpoint to list all active products with filtering (with optional auth for enhanced features)
 productsRoutes.get('/', optionalAuth, async (c) => {
-  const page = Number(c.req.query('page') || '1');
-  const limit = Number(c.req.query('limit') || '20');
+  // Parse query parameters for filtering
   const search = c.req.query('search');
-  const sortBy = c.req.query('sortBy') || 'createdAt';
-  const sortOrder = (c.req.query('sortOrder') || 'desc') as 'asc' | 'desc';
+  const categoriesParam = c.req.query('categories');
+  const minPriceParam = c.req.query('minPrice');
+  const maxPriceParam = c.req.query('maxPrice');
+  const pageParam = c.req.query('page');
+  const limitParam = c.req.query('limit');
+  const sortBy = c.req.query('sortBy') as 'price' | 'createdAt' | 'name' | undefined;
+  const sortOrder = c.req.query('sortOrder') as 'asc' | 'desc' | undefined;
 
-  // Only return active products for public API
-  const result = await productsDomain.getAllProducts({
-    page,
-    limit,
-    search,
-    status: 'active',
-    sortBy,
-    sortOrder,
-  });
+  // Build filter parameters
+  const filterParams: any = {};
 
+  if (search) {
+    filterParams.search = search;
+  }
+
+  if (categoriesParam) {
+    // Split comma-separated category IDs
+    filterParams.categories = categoriesParam.split(',').filter(id => id.trim().length > 0);
+  }
+
+  if (minPriceParam) {
+    const minPrice = parseFloat(minPriceParam);
+    if (!isNaN(minPrice)) {
+      filterParams.minPrice = minPrice;
+    }
+  }
+
+  if (maxPriceParam) {
+    const maxPrice = parseFloat(maxPriceParam);
+    if (!isNaN(maxPrice)) {
+      filterParams.maxPrice = maxPrice;
+    }
+  }
+
+  if (pageParam) {
+    const page = parseInt(pageParam);
+    if (!isNaN(page)) {
+      filterParams.page = page;
+    }
+  }
+
+  if (limitParam) {
+    const limit = parseInt(limitParam);
+    if (!isNaN(limit)) {
+      filterParams.limit = limit;
+    }
+  }
+
+  if (sortBy) {
+    filterParams.sortBy = sortBy;
+  }
+
+  if (sortOrder) {
+    filterParams.sortOrder = sortOrder;
+  }
+
+  // Call domain method with parsed parameters
+  const result = await productsDomain.getProductsWithFilters(filterParams);
+
+  // Return paginated response with products and metadata
   return ResponseBuilder.success(c, result);
 });
 
