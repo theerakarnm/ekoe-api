@@ -57,23 +57,27 @@ router.on(['POST', 'GET'], '/auth/*', async (c) => {
       // Clone response to read body without consuming it
       const clonedResponse = response.clone();
       const contentType = clonedResponse.headers.get('content-type');
+      const cookieData = response.headers.get('set-cookie')?.split(',').map((cookie) => cookie.split(';')[0].trim())?.join('; ')
+      clonedResponse.headers.append('Cookie', cookieData || '')
+      const session = await auth.api.getSession({
+        headers: clonedResponse.headers
+      })
 
-      console.log(clonedResponse.headers.get('set-cookie'));
-
+      console.log({ cookieData, session })
 
       // Only process JSON responses (sign-up/sign-in endpoints)
       if (contentType?.includes('application/json')) {
         try {
-          const data = await clonedResponse.json() as any;
+
 
           // Check if user data is present in response
-          if (data && typeof data === 'object' && 'user' in data && data.user && typeof data.user === 'object' && 'id' in data.user) {
+          if (session && typeof session === 'object' && 'user' in session && session.user && typeof session.user === 'object' && 'id' in session.user) {
             const { createCustomerProfileAfterAuth } = await import('../libs/auth');
 
             // Create profile for email sign-up or OAuth
             if (path.includes('/sign-up/email') || path.includes('/callback/')) {
-              const userName = 'name' in data.user ? data.user.name : undefined;
-              await createCustomerProfileAfterAuth(data.user.id as string, userName as string | undefined);
+              const userName = 'name' in session.user ? session.user.name : undefined;
+              await createCustomerProfileAfterAuth(session.user.id as string, userName as string | undefined);
             }
           }
         } catch (e) {

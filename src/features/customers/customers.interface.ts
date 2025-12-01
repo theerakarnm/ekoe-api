@@ -12,7 +12,7 @@ export const createCustomerProfileSchema = z.object({
   userId: z.string().uuid('Invalid user ID format'),
   firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim().optional(),
   lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim().optional(),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
+  phone: z.string().regex(/^(\+?[1-9]\d{7,14}|0\d{8,10})$/, 'Invalid phone number format (use international format or local format with leading 0)').optional(),
   dateOfBirth: z.coerce.date().max(new Date(), 'Date of birth cannot be in the future').optional(),
   newsletterSubscribed: z.boolean().default(false),
   smsSubscribed: z.boolean().default(false),
@@ -23,7 +23,7 @@ export const createCustomerProfileSchema = z.object({
 export const updateCustomerProfileSchema = z.object({
   firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim().optional(),
   lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim().optional(),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
+  phone: z.string().regex(/^(\+?[1-9]\d{7,14}|0\d{8,10})$/, 'Invalid phone number format (use international format or local format with leading 0)').optional(),
   dateOfBirth: z.coerce.date().max(new Date(), 'Date of birth cannot be in the future').optional(),
   newsletterSubscribed: z.boolean().optional(),
   smsSubscribed: z.boolean().optional(),
@@ -33,7 +33,6 @@ export const updateCustomerProfileSchema = z.object({
 
 // Customer Address DTOs
 export const createCustomerAddressSchema = z.object({
-  userId: z.string().uuid('Invalid user ID format'),
   label: z.string().max(50, 'Label is too long').trim().optional(),
   firstName: z.string().min(1, 'First name is required').max(100, 'First name is too long').trim(),
   lastName: z.string().min(1, 'Last name is required').max(100, 'Last name is too long').trim(),
@@ -44,7 +43,7 @@ export const createCustomerAddressSchema = z.object({
   province: z.string().min(1, 'Province is required').max(100, 'Province name is too long').trim(),
   postalCode: z.string().min(1, 'Postal code is required').regex(/^[0-9]{5}$/, 'Postal code must be 5 digits'),
   country: z.string().max(100, 'Country name is too long').default('Thailand'),
-  phone: z.string().min(1, 'Phone is required').regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)'),
+  phone: z.string().min(1, 'Phone is required').regex(/^(\+?[1-9]\d{7,14}|0\d{8,10})$/, 'Invalid phone number format (use international format or local format with leading 0)'),
   isDefault: z.boolean().default(false),
 });
 
@@ -59,7 +58,7 @@ export const updateCustomerAddressSchema = z.object({
   province: z.string().min(1, 'Province is required').max(100, 'Province name is too long').trim().optional(),
   postalCode: z.string().min(1, 'Postal code is required').regex(/^[0-9]{5}$/, 'Postal code must be 5 digits').optional(),
   country: z.string().max(100, 'Country name is too long').optional(),
-  phone: z.string().min(1, 'Phone is required').regex(/^\+?[1-9]\d{1,14}$/, 'Invalid phone number format (use international format)').optional(),
+  phone: z.string().min(1, 'Phone is required').regex(/^(\+?[1-9]\d{7,14}|0\d{8,10})$/, 'Invalid phone number format (use international format)').optional(),
   isDefault: z.boolean().optional(),
 });
 
