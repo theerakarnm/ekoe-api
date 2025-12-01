@@ -22,14 +22,14 @@ export const auth = betterAuth({
     sendVerificationEmail: async ({ user, url }: { user: any; url: string }) => {
       // Send email verification email
       logger.info({ userId: user.id, email: user.email }, 'Email verification requested');
-      
+
       if (emailService.isEnabled()) {
         const sent = await emailService.sendVerificationEmail(
           user.email,
           user.name || 'Customer',
           url
         );
-        
+
         if (sent) {
           logger.info({ userId: user.id, email: user.email }, 'Verification email sent successfully');
         } else {
@@ -43,14 +43,14 @@ export const auth = betterAuth({
     sendResetPassword: async ({ user, url }: { user: any; url: string }) => {
       // Send password reset email
       logger.info({ userId: user.id, email: user.email }, 'Password reset requested');
-      
+
       if (emailService.isEnabled()) {
         const sent = await emailService.sendPasswordResetEmail(
           user.email,
           user.name || 'Customer',
           url
         );
-        
+
         if (sent) {
           logger.info({ userId: user.id, email: user.email }, 'Password reset email sent successfully');
         } else {
@@ -91,25 +91,25 @@ export const auth = betterAuth({
       // SameSite attribute for CSRF protection
       // 'none' is required for cross-origin requests (API and Web on different origins)
       // In production with same domain, consider using 'lax' or 'strict'
-      sameSite: "none",
-      
+      sameSite: config.env === 'production' ? "none" : "lax",
+
       // Secure flag - cookies only sent over HTTPS
       // Always true in production, false in development for localhost testing
       secure: config.env === 'production',
-      
+
       // HttpOnly flag - prevents JavaScript access to cookies (XSS protection)
       httpOnly: true,
-      
+
       // Partitioned flag - for CHIPS (Cookies Having Independent Partitioned State)
       // Helps with third-party cookie restrictions in modern browsers
-      partitioned: true,
-      
+      partitioned: config.env === 'production',
+
       // Cookie expiration - matches session expiration (7 days)
       maxAge: 60 * 60 * 24 * 7, // 7 days in seconds
-      
+
       // Path - restrict cookie to specific paths if needed
       path: '/',
-      
+
       // Domain - set explicitly in production for subdomain support
       // domain: config.env === 'production' ? '.yourdomain.com' : undefined,
     },

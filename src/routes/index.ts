@@ -8,11 +8,11 @@ import analyticsRoutes from './analytics.routes';
 import paymentsRoutes from './payments.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
-import { 
-  loginRateLimit, 
-  registrationRateLimit, 
+import {
+  loginRateLimit,
+  registrationRateLimit,
   passwordResetRateLimit,
-  authRateLimit 
+  authRateLimit
 } from '../middleware/rate-limit.middleware';
 
 const router = new Hono<{
@@ -46,31 +46,38 @@ router.use('/auth/*', authRateLimit);
 // Auth routes with profile auto-creation
 router.on(['POST', 'GET'], '/auth/*', async (c) => {
   const response = await auth.handler(c.req.raw);
-  
+
   // Check if this is a successful sign-up or OAuth callback
   const url = new URL(c.req.url);
   const path = url.pathname;
-  
+
   // Handle profile creation after successful authentication
   if (response.status === 200 || response.status === 302) {
     try {
       // Clone response to read body without consuming it
       const clonedResponse = response.clone();
       const contentType = clonedResponse.headers.get('content-type');
-      
+
+      console.log(clonedResponse.headers.get('set-cookie'));
+
+
       // Only process JSON responses (sign-up/sign-in endpoints)
       if (contentType?.includes('application/json')) {
-        const data = await clonedResponse.json() as any;
-        
-        // Check if user data is present in response
-        if (data && typeof data === 'object' && 'user' in data && data.user && typeof data.user === 'object' && 'id' in data.user) {
-          const { createCustomerProfileAfterAuth } = await import('../libs/auth');
-          
-          // Create profile for email sign-up or OAuth
-          if (path.includes('/sign-up/email') || path.includes('/callback/')) {
-            const userName = 'name' in data.user ? data.user.name : undefined;
-            await createCustomerProfileAfterAuth(data.user.id as string, userName as string | undefined);
+        try {
+          const data = await clonedResponse.json() as any;
+
+          // Check if user data is present in response
+          if (data && typeof data === 'object' && 'user' in data && data.user && typeof data.user === 'object' && 'id' in data.user) {
+            const { createCustomerProfileAfterAuth } = await import('../libs/auth');
+
+            // Create profile for email sign-up or OAuth
+            if (path.includes('/sign-up/email') || path.includes('/callback/')) {
+              const userName = 'name' in data.user ? data.user.name : undefined;
+              await createCustomerProfileAfterAuth(data.user.id as string, userName as string | undefined);
+            }
           }
+        } catch (e) {
+          // Ignore JSON parse errors for empty bodies (common in redirects)
         }
       }
     } catch (error) {
@@ -78,7 +85,7 @@ router.on(['POST', 'GET'], '/auth/*', async (c) => {
       console.error('Failed to create customer profile:', error);
     }
   }
-  
+
   return response;
 });
 

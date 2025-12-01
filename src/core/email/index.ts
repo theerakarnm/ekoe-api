@@ -285,7 +285,7 @@ class EmailService {
 
       // Format amount (convert from cents to currency)
       const formattedAmount = (paymentAmount / 100).toFixed(2);
-      
+
       // Format payment method
       const formattedPaymentMethod = paymentMethod
         .replace('_', ' ')
@@ -336,7 +336,7 @@ class EmailService {
 
       // Format amount (convert from cents to currency)
       const formattedAmount = (paymentAmount / 100).toFixed(2);
-      
+
       // Format payment method
       const formattedPaymentMethod = paymentMethod
         .replace('_', ' ')
@@ -439,9 +439,8 @@ class EmailService {
                             ${formattedPaymentMethod}
                           </td>
                         </tr>
-                        ${
-                          transactionId
-                            ? `
+                        ${transactionId
+        ? `
                         <tr>
                           <td style="padding: 10px 0;">
                             <strong style="color: #333333;">Transaction ID:</strong>
@@ -451,8 +450,8 @@ class EmailService {
                           </td>
                         </tr>
                         `
-                            : ''
-                        }
+        : ''
+      }
                       </table>
                       
                       <p style="margin: 20px 0; color: #666666; font-size: 16px; line-height: 1.5;">
@@ -577,4 +576,4 @@ class EmailService {
   }
 }
 
-export const emailService = new EmailService();
+export const emailService = new EmailService(); 
