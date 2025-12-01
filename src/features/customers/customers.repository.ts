@@ -42,11 +42,11 @@ export class CustomersRepository {
         .set({ ...data, updatedAt: new Date() })
         .where(eq(customerProfiles.userId, userId))
         .returning();
-      
+
       if (!result[0]) {
         throw new AppError('Customer profile not found', 404, 'NOT_FOUND', { userId });
       }
-      
+
       return result[0];
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -60,11 +60,11 @@ export class CustomersRepository {
         .delete(customerProfiles)
         .where(eq(customerProfiles.userId, userId))
         .returning();
-      
+
       if (!result[0]) {
         throw new AppError('Customer profile not found', 404, 'NOT_FOUND', { userId });
       }
-      
+
       return result[0];
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -104,7 +104,7 @@ export class CustomersRepository {
     }
   }
 
-  async createAddress(data: CreateCustomerAddressDto) {
+  async createAddress(data: CreateCustomerAddressDto & { userId: string }) {
     try {
       // If this is set as default, unset other defaults first
       if (data.isDefault) {
@@ -142,11 +142,11 @@ export class CustomersRepository {
           eq(customerAddresses.userId, userId)
         ))
         .returning();
-      
+
       if (!result[0]) {
         throw new AppError('Customer address not found', 404, 'NOT_FOUND', { id, userId });
       }
-      
+
       return result[0];
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -165,11 +165,11 @@ export class CustomersRepository {
           eq(customerAddresses.userId, userId)
         ))
         .returning();
-      
+
       if (!result[0]) {
         throw new AppError('Customer address not found', 404, 'NOT_FOUND', { id, userId });
       }
-      
+
       return result[0];
     } catch (error) {
       if (error instanceof AppError) throw error;
@@ -198,7 +198,7 @@ export class CustomersRepository {
     try {
       const { orders } = await import('../../core/database/schema/orders.schema');
       const { desc, sql } = await import('drizzle-orm');
-      
+
       const { page, limit } = params;
       const offset = (page - 1) * limit;
 
