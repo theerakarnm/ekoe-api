@@ -6,6 +6,7 @@ import {
   billingAddresses,
   orderStatusHistory,
 } from '../../core/database/schema/orders.schema';
+import { users } from '../../core/database/schema/auth-schema';
 import { products, productVariants } from '../../core/database/schema/products.schema';
 import { eq, and, sql, desc, asc, ilike, or, gte } from 'drizzle-orm';
 import { NotFoundError, AppError } from '../../core/errors';
@@ -243,7 +244,7 @@ export class OrdersRepository {
   }
 
   /**
-   * Get order by ID with full details
+   * Get order by ID with full details including status history
    */
   async getOrderById(id: string): Promise<OrderDetail> {
     const [order] = await db
@@ -276,11 +277,15 @@ export class OrdersRepository {
       .where(eq(billingAddresses.orderId, id))
       .limit(1);
 
+    // Get status history with administrator names
+    const statusHistory = await this.getOrderStatusHistory(id);
+
     return {
       ...order,
       items,
       shippingAddress: shippingAddr || null,
       billingAddress: billingAddr || null,
+      statusHistory,
     };
   }
 
@@ -354,14 +359,38 @@ export class OrdersRepository {
   }
 
   /**
-   * Get order status history
+   * Get order status history with administrator names
    */
   async getOrderStatusHistory(orderId: string) {
-    return await db
-      .select()
+    const history = await db
+      .select({
+        id: orderStatusHistory.id,
+        orderId: orderStatusHistory.orderId,
+        status: orderStatusHistory.status,
+        note: orderStatusHistory.note,
+        changedBy: orderStatusHistory.changedBy,
+        createdAt: orderStatusHistory.createdAt,
+        changedByName: users.name,
+        changedByEmail: users.email,
+      })
       .from(orderStatusHistory)
+      .leftJoin(users, eq(orderStatusHistory.changedBy, users.id))
       .where(eq(orderStatusHistory.orderId, orderId))
       .orderBy(desc(orderStatusHistory.createdAt));
+
+    // Transform the data to include proper display names
+    return history.map((entry) => ({
+      id: entry.id,
+      orderId: entry.orderId,
+      status: entry.status,
+      note: entry.note,
+      changedBy: entry.changedBy,
+      createdAt: entry.createdAt,
+      // If changedBy is 'system', display 'System', otherwise use the user's name or email
+      changedByName: entry.changedBy === 'system' 
+        ? 'System' 
+        : entry.changedByName || entry.changedByEmail || 'Administrator',
+    }));
   }
 
   /**

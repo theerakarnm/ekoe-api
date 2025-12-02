@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Cancelled</title>
+    <style>
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 100% !important;
+          padding: 20px !important;
+        }
+        .content-padding {
+          padding: 20px !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td align="center" style="padding: 40px 20px;">
+          <table role="presentation" class="email-container" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <!-- Header -->
+            <tr>
+              <td style="padding: 40px 40px 20px 40px; text-align: center; background: linear-gradient(135deg, #6c757d 0%, #495057 100%); border-radius: 8px 8px 0 0;">
+                <div style="width: 60px; height: 60px; margin: 0 auto 20px; background-color: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                  <span style="font-size: 32px; color: #ffffff;">✖️</span>
+                </div>
+                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Order Cancelled</h1>
+              </td>
+            </tr>
+            
+            <!-- Content -->
+            <tr>
+              <td class="content-padding" style="padding: 40px;">
+                <p style="margin: 0 0 24px 0; color: #333333; font-size: 16px; line-height: 1.6;">
+                  Your order has been cancelled as requested.
+                </p>
+                
+                <!-- Order Details Card -->
+                <div style="background-color: #f8f9fa; border-radius: 6px; padding: 24px; margin: 24px 0;">
+                  <h2 style="margin: 0 0 16px 0; color: #333333; font-size: 18px; font-weight: 600;">Cancellation Details</h2>
+                  
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Order Number</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <strong style="color: #333333; font-size: 14px;">{{ORDER_NUMBER}}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Order Status</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <span style="color: #6c757d; font-size: 14px; font-weight: 600;">Cancelled</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Cancelled On</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <span style="color: #333333; font-size: 14px;">{{CANCELLATION_DATE}}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0;">
+                        <span style="color: #6c757d; font-size: 14px;">Reason</span>
+                      </td>
+                      <td style="padding: 12px 0; text-align: right;">
+                        <span style="color: #333333; font-size: 14px;">{{CANCELLATION_REASON}}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                
+                <!-- Status Message -->
+                <div style="background-color: #e2e3e5; border-left: 4px solid #6c757d; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #383d41; font-size: 14px; line-height: 1.5;">
+                    <strong>Order Cancelled</strong><br>
+                    Your order has been successfully cancelled. If you paid for this order, a refund will be processed according to our refund policy.
+                  </p>
+                </div>
+                
+                <!-- Refund Information -->
+                <div style="background-color: #d1ecf1; border-left: 4px solid #17a2b8; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                  <p style="margin: 0 0 8px 0; color: #0c5460; font-size: 14px; line-height: 1.5;">
+                    <strong>Refund Information</strong>
+                  </p>
+                  <p style="margin: 0; color: #0c5460; font-size: 14px; line-height: 1.5;">
+                    If payment was already processed, your refund will be initiated within 3-5 business days. The refund will be credited to your original payment method within 7-10 business days depending on your bank or card issuer.
+                  </p>
+                </div>
+                
+                <!-- CTA Button -->
+                <table role="presentation" style="margin: 32px 0;">
+                  <tr>
+                    <td align="center">
+                      <a href="{{ORDER_DETAILS_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #6c757d; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(108,117,125,0.2);">View Order Details</a>
+                    </td>
+                  </tr>
+                </table>
+                
+                <!-- Next Steps -->
+                <div style="margin: 24px 0;">
+                  <h3 style="margin: 0 0 12px 0; color: #333333; font-size: 16px; font-weight: 600;">What's Next?</h3>
+                  <ul style="margin: 0; padding-left: 20px; color: #666666; font-size: 14px; line-height: 1.8;">
+                    <li>No further action is required from you</li>
+                    <li>If applicable, your refund will be processed automatically</li>
+                    <li>You can place a new order anytime from our website</li>
+                    <li>Contact support if you have questions about the cancellation</li>
+                  </ul>
+                </div>
+                
+                <p style="margin: 24px 0 0 0; color: #6c757d; font-size: 14px; line-height: 1.6;">
+                  We're sorry to see this order cancelled. If you have any questions or concerns, please don't hesitate to contact our customer support team.
+                </p>
+              </td>
+            </tr>
+            
+            <!-- Footer -->
+            <tr>
+              <td style="padding: 24px 40px; border-top: 1px solid #e9ecef; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
+                <p style="margin: 0 0 8px 0; color: #6c757d; font-size: 12px; line-height: 1.5; text-align: center;">
+                  We hope to serve you again soon!
+                </p>
+                <p style="margin: 0; color: #adb5bd; font-size: 11px; line-height: 1.5; text-align: center;">
+                  This is an automated email. Please do not reply to this message.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

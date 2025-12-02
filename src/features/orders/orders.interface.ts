@@ -120,6 +120,7 @@ export interface OrderDetail extends Order {
   items: OrderItemDetail[];
   shippingAddress: ShippingAddress | null;
   billingAddress: BillingAddress | null;
+  statusHistory?: OrderStatusHistory[];
 }
 
 export interface OrderStatusHistory {
@@ -128,6 +129,7 @@ export interface OrderStatusHistory {
   status: string;
   note: string | null;
   changedBy: string | null;
+  changedByName?: string;
   createdAt: Date;
 }
 

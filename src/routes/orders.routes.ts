@@ -67,6 +67,39 @@ ordersRoutes.get('/admin/orders/:id', requireAdminAuth, async (c) => {
   return ResponseBuilder.success(c, order);
 });
 
+// Update order status - uses state machine validation
+ordersRoutes.post(
+  '/admin/orders/:id/status',
+  requireAdminAuth,
+  validateJson(updateOrderStatusSchema),
+  async (c) => {
+    const id = c.req.param('id');
+    const data = await c.req.json();
+    const user = c.get('user');
+
+    const result = await ordersDomain.updateOrderStatus(
+      id,
+      data,
+      user?.id
+    );
+
+    return ResponseBuilder.success(c, result);
+  }
+);
+
+// Get valid next statuses for an order
+ordersRoutes.get('/admin/orders/:id/valid-next-statuses', requireAdminAuth, async (c) => {
+  const id = c.req.param('id');
+  const order = await ordersDomain.getOrderById(id);
+  const validNextStatuses = await ordersDomain.getValidNextStatuses(id);
+  
+  return ResponseBuilder.success(c, {
+    currentStatus: order.status,
+    validNextStatuses,
+  });
+});
+
+// Legacy endpoint - kept for backward compatibility
 ordersRoutes.patch(
   '/admin/orders/:id',
   requireAdminAuth,

@@ -215,6 +215,259 @@ class EmailService {
   }
 
   /**
+   * Send order processing email
+   */
+  async sendOrderProcessingEmail(
+    email: string,
+    orderNumber: string,
+    orderDate: string,
+    orderDetailsUrl: string
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Processing - ${orderNumber}`;
+      const html = this.getOrderProcessingTemplate(orderNumber, orderDate, orderDetailsUrl);
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber }, 'Failed to send order processing email');
+      return false;
+    }
+  }
+
+  /**
+   * Send order shipped email
+   */
+  async sendOrderShippedEmail(
+    email: string,
+    orderNumber: string,
+    trackingNumber: string,
+    carrier: string,
+    estimatedDelivery: string,
+    trackingUrl: string,
+    orderDetailsUrl: string
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Shipped - ${orderNumber}`;
+      const html = this.getOrderShippedTemplate(
+        orderNumber,
+        trackingNumber,
+        carrier,
+        estimatedDelivery,
+        trackingUrl,
+        orderDetailsUrl
+      );
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber }, 'Failed to send order shipped email');
+      return false;
+    }
+  }
+
+  /**
+   * Send order delivered email
+   */
+  async sendOrderDeliveredEmail(
+    email: string,
+    orderNumber: string,
+    deliveryDate: string,
+    deliveryAddress: string,
+    orderDetailsUrl: string
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Delivered - ${orderNumber}`;
+      const html = this.getOrderDeliveredTemplate(
+        orderNumber,
+        deliveryDate,
+        deliveryAddress,
+        orderDetailsUrl
+      );
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber }, 'Failed to send order delivered email');
+      return false;
+    }
+  }
+
+  /**
+   * Send order cancelled email
+   */
+  async sendOrderCancelledEmail(
+    email: string,
+    orderNumber: string,
+    cancellationReason: string,
+    orderDetailsUrl: string
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Cancelled - ${orderNumber}`;
+      const html = this.getOrderCancelledTemplate(orderNumber, cancellationReason, orderDetailsUrl);
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber }, 'Failed to send order cancelled email');
+      return false;
+    }
+  }
+
+  /**
+   * Send order refunded email
+   */
+  async sendOrderRefundedEmail(
+    email: string,
+    orderNumber: string,
+    refundAmount: number,
+    currency: string,
+    refundReason: string,
+    orderDetailsUrl: string
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Refunded - ${orderNumber}`;
+      const html = this.getOrderRefundedTemplate(
+        orderNumber,
+        refundAmount,
+        currency,
+        refundReason,
+        orderDetailsUrl
+      );
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber }, 'Failed to send order refunded email');
+      return false;
+    }
+  }
+
+  /**
+   * Get order processing email template
+   */
+  private getOrderProcessingTemplate(
+    orderNumber: string,
+    orderDate: string,
+    orderDetailsUrl: string
+  ): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-processing.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      template = template
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderNumber)
+        .replace(/\{\{ORDER_DATE\}\}/g, orderDate)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order processing template');
+      throw error;
+    }
+  }
+
+  /**
+   * Get order shipped email template
+   */
+  private getOrderShippedTemplate(
+    orderNumber: string,
+    trackingNumber: string,
+    carrier: string,
+    estimatedDelivery: string,
+    trackingUrl: string,
+    orderDetailsUrl: string
+  ): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-shipped.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      template = template
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderNumber)
+        .replace(/\{\{TRACKING_NUMBER\}\}/g, trackingNumber)
+        .replace(/\{\{CARRIER\}\}/g, carrier)
+        .replace(/\{\{ESTIMATED_DELIVERY\}\}/g, estimatedDelivery)
+        .replace(/\{\{TRACKING_URL\}\}/g, trackingUrl)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order shipped template');
+      throw error;
+    }
+  }
+
+  /**
+   * Get order delivered email template
+   */
+  private getOrderDeliveredTemplate(
+    orderNumber: string,
+    deliveryDate: string,
+    deliveryAddress: string,
+    orderDetailsUrl: string
+  ): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-delivered.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      template = template
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderNumber)
+        .replace(/\{\{DELIVERY_DATE\}\}/g, deliveryDate)
+        .replace(/\{\{DELIVERY_ADDRESS\}\}/g, deliveryAddress)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order delivered template');
+      throw error;
+    }
+  }
+
+  /**
+   * Get order cancelled email template
+   */
+  private getOrderCancelledTemplate(
+    orderNumber: string,
+    cancellationReason: string,
+    orderDetailsUrl: string
+  ): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-cancelled.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      template = template
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderNumber)
+        .replace(/\{\{CANCELLATION_REASON\}\}/g, cancellationReason)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order cancelled template');
+      throw error;
+    }
+  }
+
+  /**
+   * Get order refunded email template
+   */
+  private getOrderRefundedTemplate(
+    orderNumber: string,
+    refundAmount: number,
+    currency: string,
+    refundReason: string,
+    orderDetailsUrl: string
+  ): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-refunded.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      const formattedAmount = (refundAmount / 100).toFixed(2);
+
+      template = template
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderNumber)
+        .replace(/\{\{REFUND_AMOUNT\}\}/g, formattedAmount)
+        .replace(/\{\{CURRENCY\}\}/g, currency)
+        .replace(/\{\{REFUND_REASON\}\}/g, refundReason)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order refunded template');
+      throw error;
+    }
+  }
+
+  /**
    * Send payment confirmation email
    */
   async sendPaymentConfirmationEmail(

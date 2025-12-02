@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Order Shipped</title>
+    <style>
+      @media only screen and (max-width: 600px) {
+        .email-container {
+          width: 100% !important;
+          padding: 20px !important;
+        }
+        .content-padding {
+          padding: 20px !important;
+        }
+      }
+    </style>
+  </head>
+  <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; background-color: #f4f4f4;">
+    <table role="presentation" style="width: 100%; border-collapse: collapse;">
+      <tr>
+        <td align="center" style="padding: 40px 20px;">
+          <table role="presentation" class="email-container" style="max-width: 600px; width: 100%; border-collapse: collapse; background-color: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+            <!-- Header -->
+            <tr>
+              <td style="padding: 40px 40px 20px 40px; text-align: center; background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%); border-radius: 8px 8px 0 0;">
+                <div style="width: 60px; height: 60px; margin: 0 auto 20px; background-color: rgba(255,255,255,0.2); border-radius: 50%; display: flex; align-items: center; justify-content: center;">
+                  <span style="font-size: 32px; color: #ffffff;">📦</span>
+                </div>
+                <h1 style="margin: 0; color: #ffffff; font-size: 28px; font-weight: 600;">Order Shipped!</h1>
+              </td>
+            </tr>
+            
+            <!-- Content -->
+            <tr>
+              <td class="content-padding" style="padding: 40px;">
+                <p style="margin: 0 0 24px 0; color: #333333; font-size: 16px; line-height: 1.6;">
+                  Exciting news! Your order is on its way to you.
+                </p>
+                
+                <!-- Order Details Card -->
+                <div style="background-color: #f8f9fa; border-radius: 6px; padding: 24px; margin: 24px 0;">
+                  <h2 style="margin: 0 0 16px 0; color: #333333; font-size: 18px; font-weight: 600;">Shipment Details</h2>
+                  
+                  <table style="width: 100%; border-collapse: collapse;">
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Order Number</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <strong style="color: #333333; font-size: 14px;">{{ORDER_NUMBER}}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Order Status</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <span style="color: #6f42c1; font-size: 14px; font-weight: 600;">Shipped</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Tracking Number</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <strong style="color: #6f42c1; font-size: 14px; font-family: monospace;">{{TRACKING_NUMBER}}</strong>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef;">
+                        <span style="color: #6c757d; font-size: 14px;">Carrier</span>
+                      </td>
+                      <td style="padding: 12px 0; border-bottom: 1px solid #e9ecef; text-align: right;">
+                        <span style="color: #333333; font-size: 14px;">{{CARRIER}}</span>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td style="padding: 12px 0;">
+                        <span style="color: #6c757d; font-size: 14px;">Estimated Delivery</span>
+                      </td>
+                      <td style="padding: 12px 0; text-align: right;">
+                        <span style="color: #333333; font-size: 14px; font-weight: 600;">{{ESTIMATED_DELIVERY}}</span>
+                      </td>
+                    </tr>
+                  </table>
+                </div>
+                
+                <!-- Status Message -->
+                <div style="background-color: #e0cffc; border-left: 4px solid #6f42c1; padding: 16px; margin: 24px 0; border-radius: 4px;">
+                  <p style="margin: 0; color: #432874; font-size: 14px; line-height: 1.5;">
+                    <strong>✓ Package on the Way</strong><br>
+                    Your order has been handed over to the carrier and is en route to your delivery address. Use the tracking number above to monitor your shipment's progress.
+                  </p>
+                </div>
+                
+                <!-- Tracking Button -->
+                <table role="presentation" style="margin: 32px 0;">
+                  <tr>
+                    <td align="center">
+                      <a href="{{TRACKING_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #6f42c1; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(111,66,193,0.2); margin: 0 8px 8px 0;">Track Shipment</a>
+                      <a href="{{ORDER_DETAILS_URL}}" style="display: inline-block; padding: 14px 32px; background-color: #6c757d; color: #ffffff; text-decoration: none; border-radius: 6px; font-size: 16px; font-weight: 600; box-shadow: 0 2px 4px rgba(108,117,125,0.2); margin: 0 0 8px 8px;">View Order</a>
+                    </td>
+                  </tr>
+                </table>
+                
+                <!-- Delivery Tips -->
+                <div style="margin: 24px 0;">
+                  <h3 style="margin: 0 0 12px 0; color: #333333; font-size: 16px; font-weight: 600;">Delivery Information</h3>
+                  <ul style="margin: 0; padding-left: 20px; color: #666666; font-size: 14px; line-height: 1.8;">
+                    <li>Please ensure someone is available to receive the package</li>
+                    <li>Track your shipment for real-time updates</li>
+                    <li>Contact the carrier directly if you need to reschedule delivery</li>
+                  </ul>
+                </div>
+                
+                <p style="margin: 24px 0 0 0; color: #6c757d; font-size: 14px; line-height: 1.6;">
+                  If you have any questions about your shipment, please don't hesitate to contact our customer support team.
+                </p>
+              </td>
+            </tr>
+            
+            <!-- Footer -->
+            <tr>
+              <td style="padding: 24px 40px; border-top: 1px solid #e9ecef; background-color: #f8f9fa; border-radius: 0 0 8px 8px;">
+                <p style="margin: 0 0 8px 0; color: #6c757d; font-size: 12px; line-height: 1.5; text-align: center;">
+                  Thank you for shopping with us!
+                </p>
+                <p style="margin: 0; color: #adb5bd; font-size: 11px; line-height: 1.5; text-align: center;">
+                  This is an automated email. Please do not reply to this message.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
