@@ -3,13 +3,18 @@ import { db } from '../../core/database';
 import { products, productVariants } from '../../core/database/schema/products.schema';
 import { eq, and, isNull } from 'drizzle-orm';
 import { ValidationError, NotFoundError, AppError } from '../../core/errors';
+import { orderStatusStateMachine, type OrderStatus } from './order-status-state-machine';
 import type {
   CreateOrderRequest,
   UpdateOrderStatusRequest,
   GetOrdersParams,
+  PaymentEvent,
+  OrderStatusUpdate,
 } from './orders.interface';
 
 export class OrdersDomain {
+  private stateMachine = orderStatusStateMachine;
+
   /**
    * Generate unique order number
    */
@@ -247,33 +252,106 @@ export class OrdersDomain {
   }
 
   /**
-   * Update order status
+   * Update order status with state machine validation
    */
   async updateOrderStatus(
     id: string,
     data: UpdateOrderStatusRequest,
     changedBy?: string
-  ) {
-    // Validate status transition (basic validation)
-    const validStatuses = [
-      'pending',
-      'processing',
-      'shipped',
-      'delivered',
-      'cancelled',
-      'refunded',
-    ];
+  ): Promise<OrderStatusUpdate> {
+    // Get current order
+    const order = await ordersRepository.getOrderById(id);
+    
+    const currentStatus = order.status as OrderStatus;
+    const newStatus = data.status as OrderStatus;
 
-    if (!validStatuses.includes(data.status)) {
-      throw new ValidationError(`Invalid status: ${data.status}`);
+    // Validate transition using state machine
+    if (!this.stateMachine.isValidTransition(currentStatus, newStatus)) {
+      const reason = this.stateMachine.getTransitionReason(currentStatus, newStatus);
+      throw new ValidationError(
+        reason || `Invalid status transition from ${currentStatus} to ${newStatus}`,
+        { from: currentStatus, to: newStatus }
+      );
     }
 
-    return await ordersRepository.updateOrderStatus(
+    // Update order status
+    const updatedOrder = await ordersRepository.updateOrderStatus(
       id,
-      data.status,
+      newStatus,
       data.note,
       changedBy
     );
+
+    return {
+      orderId: id,
+      previousStatus: currentStatus,
+      newStatus: newStatus,
+      timestamp: new Date(),
+      changedBy,
+    };
+  }
+
+  /**
+   * Get valid next statuses for an order
+   */
+  async getValidNextStatuses(orderId: string): Promise<OrderStatus[]> {
+    const order = await ordersRepository.getOrderById(orderId);
+    const currentStatus = order.status as OrderStatus;
+    return this.stateMachine.getValidNextStatuses(currentStatus);
+  }
+
+  /**
+   * Handle payment events and automatically update order status
+   */
+  async handlePaymentEvent(event: PaymentEvent): Promise<void> {
+    const { type, orderId, timestamp, metadata } = event;
+
+    // Get current order
+    const order = await ordersRepository.getOrderById(orderId);
+    const currentStatus = order.status as OrderStatus;
+
+    let newStatus: OrderStatus | null = null;
+    let note: string | undefined;
+
+    switch (type) {
+      case 'payment_completed':
+        // Transition from pending to processing when payment completes
+        if (currentStatus === 'pending') {
+          newStatus = 'processing';
+          note = 'Payment completed successfully';
+        }
+        break;
+
+      case 'payment_failed':
+        // Keep order in pending status, just record the failure
+        note = `Payment failed: ${metadata?.reason || 'Unknown reason'}`;
+        // Create history entry without changing status
+        await ordersRepository.createStatusHistoryEntry(
+          orderId,
+          currentStatus,
+          note,
+          'system'
+        );
+        return;
+
+      case 'refund_processed':
+        // Transition to refunded status
+        if (this.stateMachine.isValidTransition(currentStatus, 'refunded')) {
+          newStatus = 'refunded';
+          note = 'Refund processed successfully';
+        }
+        break;
+    }
+
+    // Update status if a transition is needed
+    if (newStatus && this.stateMachine.isValidTransition(currentStatus, newStatus)) {
+      await ordersRepository.updateOrderStatus(
+        orderId,
+        newStatus,
+        note,
+        'system' // Automated change
+      );
+    }
   }
 
   /**

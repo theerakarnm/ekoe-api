@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { OrderStatus, FulfillmentStatus, PaymentStatus } from './order-status-state-machine';
 
 // Address schema
 export const addressSchema = z.object({
@@ -137,4 +138,23 @@ export interface GetOrdersParams {
   search?: string;
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
+}
+
+// Payment event types
+export type PaymentEventType = 'payment_completed' | 'payment_failed' | 'refund_processed';
+
+export interface PaymentEvent {
+  type: PaymentEventType;
+  orderId: string;
+  timestamp: Date;
+  metadata?: Record<string, any>;
+}
+
+// Status update result
+export interface OrderStatusUpdate {
+  orderId: string;
+  previousStatus: OrderStatus;
+  newStatus: OrderStatus;
+  timestamp: Date;
+  changedBy?: string;
 }

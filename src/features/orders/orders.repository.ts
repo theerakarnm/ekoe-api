@@ -326,6 +326,28 @@ export class OrdersRepository {
       .where(eq(orderStatusHistory.orderId, orderId))
       .orderBy(desc(orderStatusHistory.createdAt));
   }
+
+  /**
+   * Create a status history entry without changing order status
+   */
+  async createStatusHistoryEntry(
+    orderId: string,
+    status: string,
+    note?: string,
+    changedBy?: string
+  ) {
+    const [entry] = await db
+      .insert(orderStatusHistory)
+      .values({
+        orderId,
+        status,
+        note,
+        changedBy,
+      })
+      .returning();
+
+    return entry;
+  }
 }
 
 export const ordersRepository = new OrdersRepository();

@@ -57,7 +57,49 @@ export class ProductsRepository {
       .limit(limit)
       .offset(offset);
 
-    return { products: result, total };
+    const productIds = result.map(p => p.id);
+
+    // Get images for these products
+    const imagesMap = new Map<string, {
+      productId: string;
+      url: string;
+      altText?: string | null;
+      description?: string | null;
+      isPrimary: boolean | null;
+      createdAt: string;
+    }[]>();
+
+    if (productIds.length > 0) {
+      const images = await db
+        .select({
+          productId: productImages.productId,
+          url: productImages.url,
+          altText: productImages.altText,
+          description: productImages.description,
+          isPrimary: productImages.isPrimary,
+          createdAt: productImages.createdAt
+        })
+        .from(productImages)
+        .where(inArray(productImages.productId, productIds))
+        .orderBy(asc(productImages.sortOrder));
+
+      for (const img of images) {
+        if (!imagesMap.has(img.productId)) {
+          imagesMap.set(img.productId, []);
+        }
+        imagesMap.get(img.productId)?.push({
+          ...img,
+          createdAt: img.createdAt.toISOString(),
+        });
+      }
+    }
+
+    const productsWithImages = result.map(p => ({
+      ...p,
+      images: imagesMap.get(p.id) || []
+    }));
+
+    return { products: productsWithImages, total };
   }
 
   async findById(id: string) {
