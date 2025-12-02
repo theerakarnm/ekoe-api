@@ -40,6 +40,23 @@ ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
   return ResponseBuilder.success(c, order);
 });
 
+// Get order status history - customer endpoint
+ordersRoutes.get('/:id/status-history', requireCustomerAuth, async (c) => {
+  const id = c.req.param('id');
+  const user = c.get('user');
+  
+  // Get order and verify it belongs to the user
+  const order = await ordersDomain.getOrderById(id);
+  
+  // Allow access if user is the order owner or if email matches (for guest checkout)
+  if (order.userId !== user?.id && order.email !== user?.email) {
+    return ResponseBuilder.error(c, 'Unauthorized', 403, 'FORBIDDEN');
+  }
+  
+  const history = await ordersDomain.getOrderStatusHistory(id);
+  return ResponseBuilder.success(c, { history });
+});
+
 // Admin endpoints - Order management
 ordersRoutes.get('/admin/orders', requireAdminAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');

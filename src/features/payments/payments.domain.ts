@@ -17,6 +17,13 @@ import type {
   TwoC2PWebhookPayload,
 } from './payments.interface';
 
+// Lazy load orders domain to avoid circular dependency
+function getOrdersDomain() {
+  // Use require to avoid circular dependency issues
+  const { ordersDomain } = require('../orders/orders.domain');
+  return ordersDomain;
+}
+
 export class PaymentsDomain {
   /**
    * Validate payment data
@@ -217,7 +224,8 @@ export class PaymentsDomain {
    * Updates payment status, order status, and sends confirmation email
    */
   async completePayment(paymentId: string): Promise<void> {
-    return await db.transaction(async (tx) => {
+    // Execute transaction first
+    await db.transaction(async (tx) => {
       // Get payment details
       const payment = await paymentsRepository.getPaymentById(paymentId);
       if (!payment) {
@@ -230,13 +238,12 @@ export class PaymentsDomain {
       // Update payment status
       await paymentsRepository.markPaymentCompleted(paymentId, new Date());
 
-      // Update order status
+      // Update order payment status
       await tx
         .update(orders)
         .set({
           paymentStatus: 'paid',
           paidAt: new Date(),
-          status: 'processing',
           updatedAt: new Date(),
         })
         .where(eq(orders.id, payment.orderId));
@@ -270,6 +277,32 @@ export class PaymentsDomain {
         'Payment completed successfully'
       );
     });
+
+    // After transaction completes, trigger order status update through order domain
+    // This ensures state machine validation and proper email notifications
+    const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
+    
+    if (updatedPayment) {
+      try {
+        // Await the event handling to ensure it completes
+        const ordersDomain = getOrdersDomain();
+        await ordersDomain.handlePaymentEvent({
+          type: 'payment_completed',
+          orderId: updatedPayment!.orderId,
+          timestamp: new Date(),
+          metadata: {
+            paymentId,
+            transactionId: updatedPayment!.transactionId || undefined,
+          },
+        });
+      } catch (error) {
+        logger.error(
+          { error, paymentId, orderId: updatedPayment!.orderId },
+          'Failed to handle payment completion event'
+        );
+        // Don't throw - payment is already completed, this is just status sync
+      }
+    }
   }
 
   /**
@@ -277,7 +310,8 @@ export class PaymentsDomain {
    * Updates payment status and order status
    */
   async failPayment(paymentId: string, reason: string): Promise<void> {
-    return await db.transaction(async (tx) => {
+    // Execute transaction first
+    await db.transaction(async (tx) => {
       // Get payment details
       const payment = await paymentsRepository.getPaymentById(paymentId);
       if (!payment) {
@@ -328,6 +362,29 @@ export class PaymentsDomain {
         'Payment failed'
       );
     });
+
+    // After transaction completes, trigger order status event through order domain
+    // This records the failure in order status history
+    const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
+    if (updatedPayment) {
+      try {
+        const ordersDomain = getOrdersDomain();
+        await ordersDomain.handlePaymentEvent({
+          type: 'payment_failed',
+          orderId: updatedPayment!.orderId,
+          timestamp: new Date(),
+          metadata: {
+            paymentId,
+            reason,
+          },
+        });
+      } catch (error) {
+        logger.error(
+          { error, paymentId, orderId: updatedPayment!.orderId },
+          'Failed to handle payment failure event'
+        );
+      }
+    }
   }
 
   /**
@@ -559,6 +616,77 @@ export class PaymentsDomain {
   }
 
   /**
+   * Process refund workflow
+   * Updates payment status to refunded and triggers order status update
+   */
+  async processRefund(
+    paymentId: string,
+    reason: string,
+    adminId?: string
+  ): Promise<void> {
+    // Execute transaction first
+    await db.transaction(async (tx) => {
+      // Get payment details
+      const payment = await paymentsRepository.getPaymentById(paymentId);
+      if (!payment) {
+        throw new NotFoundError('Payment');
+      }
+
+      // Validate status transition
+      this.validateStatusTransition(payment.status, 'refunded');
+
+      // Update payment status to refunded
+      await paymentsRepository.updatePaymentStatus(
+        paymentId,
+        'refunded',
+        payment.transactionId || undefined,
+        {
+          refundedAt: new Date().toISOString(),
+          refundReason: reason,
+          refundedBy: adminId,
+        }
+      );
+
+      // Update order payment status
+      await tx
+        .update(orders)
+        .set({
+          paymentStatus: 'refunded',
+          updatedAt: new Date(),
+        })
+        .where(eq(orders.id, payment.orderId));
+
+      logger.info(
+        { paymentId, orderId: payment.orderId, reason, adminId },
+        'Payment refunded'
+      );
+    });
+
+    // After transaction completes, trigger order status update through order domain
+    const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
+    if (updatedPayment) {
+      try {
+        const ordersDomain = getOrdersDomain();
+        await ordersDomain.handlePaymentEvent({
+          type: 'refund_processed',
+          orderId: updatedPayment!.orderId,
+          timestamp: new Date(),
+          metadata: {
+            paymentId,
+            reason,
+            adminId,
+          },
+        });
+      } catch (error) {
+        logger.error(
+          { error, paymentId, orderId: updatedPayment!.orderId },
+          'Failed to handle refund event'
+        );
+      }
+    }
+  }
+
+  /**
    * Manually verify payment (admin action)
    */
   async manuallyVerifyPayment(
@@ -596,13 +724,12 @@ export class PaymentsDomain {
         }
       );
 
-      // Update order status
+      // Update order payment status
       await tx
         .update(orders)
         .set({
           paymentStatus: 'paid',
           paidAt: new Date(),
-          status: 'processing',
           updatedAt: new Date(),
         })
         .where(eq(orders.id, payment.orderId));
@@ -642,6 +769,27 @@ export class PaymentsDomain {
       { paymentId, adminId, note },
       'Payment manually verified by admin'
     );
+
+    // After transaction completes, trigger order status update through order domain
+    try {
+      const ordersDomain = getOrdersDomain();
+      await ordersDomain.handlePaymentEvent({
+        type: 'payment_completed',
+        orderId: payment!.orderId,
+        timestamp: new Date(),
+        metadata: {
+          paymentId,
+          manualVerification: true,
+          verifiedBy: adminId,
+          note,
+        },
+      });
+    } catch (error) {
+      logger.error(
+        { error, paymentId, orderId: payment!.orderId },
+        'Failed to handle manual verification event'
+      );
+    }
   }
 
 }

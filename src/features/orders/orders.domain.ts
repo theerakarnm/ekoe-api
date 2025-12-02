@@ -444,11 +444,12 @@ export class OrdersDomain {
         // Keep order in pending status, just record the failure
         note = `Payment failed: ${metadata?.reason || 'Unknown reason'}`;
         // Create history entry without changing status
+        // Use undefined for system changes (no user ID)
         await ordersRepository.createStatusHistoryEntry(
           orderId,
           currentStatus,
           note,
-          'system'
+          undefined
         );
         return;
 
@@ -467,7 +468,7 @@ export class OrdersDomain {
         orderId,
         newStatus,
         note,
-        'system' // Automated change
+        undefined // Automated change (no user ID)
       );
 
       // Send email notification asynchronously (don't block on this)

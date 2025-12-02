@@ -306,4 +306,41 @@ paymentsRoutes.post(
   }
 );
 
+/**
+ * POST /api/admin/payments/:id/refund
+ * Process a refund for a payment (admin action)
+ */
+paymentsRoutes.post(
+  '/admin/payments/:id/refund',
+  requireAdminAuth,
+  validateJson(manualVerifyPaymentSchema),
+  async (c) => {
+    const id = c.req.param('id');
+    const { note } = await c.req.json();
+    const user = c.get('user');
+
+    if (!user) {
+      return ResponseBuilder.error(
+        c,
+        'User not found in context',
+        401,
+        'UNAUTHORIZED'
+      );
+    }
+
+    const reason = note || 'Refund processed by admin';
+    await paymentsDomain.processRefund(id, reason, user.id);
+
+    logger.info(
+      { paymentId: id, adminId: user.id, reason },
+      'Payment refunded by admin'
+    );
+
+    return ResponseBuilder.success(c, { 
+      message: 'Payment refunded successfully',
+      paymentId: id 
+    });
+  }
+);
+
 export default paymentsRoutes;
