@@ -15,8 +15,15 @@ import type {
   OrderDetail,
   GetOrdersParams,
 } from './orders.interface';
+import { OrderStatusStateMachine, type OrderStatus, type FulfillmentStatus } from './order-status-state-machine';
 
 export class OrdersRepository {
+  private stateMachine: OrderStatusStateMachine;
+
+  constructor() {
+    this.stateMachine = new OrderStatusStateMachine();
+  }
+
   /**
    * Create a new order with transactional support
    * Handles order, items, addresses, and inventory atomically
@@ -278,39 +285,69 @@ export class OrdersRepository {
   }
 
   /**
-   * Update order status with history tracking
+   * Update order status with state machine validation and history tracking
    */
   async updateOrderStatus(
     id: string,
-    status: string,
+    newStatus: OrderStatus,
     note?: string,
     changedBy?: string
   ): Promise<Order> {
     return await db.transaction(async (tx) => {
+      // Get current order
+      const [currentOrder] = await tx
+        .select()
+        .from(orders)
+        .where(eq(orders.id, id))
+        .limit(1);
+
+      if (!currentOrder) {
+        throw new NotFoundError('Order');
+      }
+
+      // Validate transition using state machine
+      const currentStatus = currentOrder.status as OrderStatus;
+      if (!this.stateMachine.isValidTransition(currentStatus, newStatus)) {
+        const reason = this.stateMachine.getTransitionReason(currentStatus, newStatus);
+        throw new AppError(
+          reason || `Invalid status transition from ${currentStatus} to ${newStatus}`,
+          400,
+          'INVALID_STATUS_TRANSITION',
+          { from: currentStatus, to: newStatus }
+        );
+      }
+
       // Update order status
       const [order] = await tx
         .update(orders)
         .set({
-          status,
+          status: newStatus,
           updatedAt: new Date(),
-          ...(status === 'cancelled' && { cancelledAt: new Date() }),
-          ...(status === 'shipped' && { shippedAt: new Date() }),
-          ...(status === 'delivered' && { deliveredAt: new Date() }),
+          ...(newStatus === 'cancelled' && { cancelledAt: new Date() }),
+          ...(newStatus === 'shipped' && { shippedAt: new Date() }),
+          ...(newStatus === 'delivered' && { deliveredAt: new Date() }),
         })
         .where(eq(orders.id, id))
         .returning();
 
-      if (!order) {
-        throw new NotFoundError('Order');
-      }
-
-      // Create status history entry
+      // Create status history entry with proper metadata
       await tx.insert(orderStatusHistory).values({
         orderId: id,
-        status,
+        status: newStatus,
         note,
-        changedBy,
+        changedBy: changedBy || null,
       });
+
+      // Update fulfillment status if transitioning to shipped
+      if (newStatus === 'shipped') {
+        await tx
+          .update(orders)
+          .set({
+            fulfillmentStatus: 'fulfilled',
+            updatedAt: new Date(),
+          })
+          .where(eq(orders.id, id));
+      }
 
       return order;
     });
@@ -347,6 +384,47 @@ export class OrdersRepository {
       .returning();
 
     return entry;
+  }
+
+  /**
+   * Get valid next statuses for an order based on its current status
+   */
+  async getValidNextStatuses(orderId: string): Promise<OrderStatus[]> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.id, orderId))
+      .limit(1);
+
+    if (!order) {
+      throw new NotFoundError('Order');
+    }
+
+    const currentStatus = order.status as OrderStatus;
+    return this.stateMachine.getValidNextStatuses(currentStatus);
+  }
+
+  /**
+   * Update fulfillment status independently from order status
+   */
+  async updateFulfillmentStatus(
+    orderId: string,
+    fulfillmentStatus: FulfillmentStatus
+  ): Promise<Order> {
+    const [order] = await db
+      .update(orders)
+      .set({
+        fulfillmentStatus,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId))
+      .returning();
+
+    if (!order) {
+      throw new NotFoundError('Order');
+    }
+
+    return order;
   }
 }
 
