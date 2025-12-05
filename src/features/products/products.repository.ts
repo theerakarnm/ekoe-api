@@ -1,5 +1,6 @@
 import { db } from '../../core/database';
 import { products, productVariants, productImages, productCategories, productTags, categories } from '../../core/database/schema/products.schema';
+import { orderItems } from '../../core/database/schema/orders.schema';
 import { eq, ilike, and, sql, desc, asc, isNull, or, inArray, gte, lte, count } from 'drizzle-orm';
 import { NotFoundError, ValidationError } from '../../core/errors';
 import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
@@ -269,6 +270,24 @@ export class ProductsRepository {
   }
 
   async getRelatedProducts(productId: string, limit: number = 4) {
+    // Get the source product with its categories and tags
+    const sourceProduct = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          eq(products.id, productId),
+          isNull(products.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!sourceProduct.length) {
+      return [];
+    }
+
+    const product = sourceProduct[0];
+
     // Get the product's categories
     const productCats = await db
       .select({ categoryId: productCategories.categoryId })
@@ -276,53 +295,175 @@ export class ProductsRepository {
       .where(eq(productCategories.productId, productId));
 
     if (productCats.length === 0) {
-      // No categories, return empty array
       return [];
     }
 
     const categoryIds = productCats.map(pc => pc.categoryId);
 
+    // Get the product's tags
+    const productTagsResult = await db
+      .select({ tagId: productTags.tagId })
+      .from(productTags)
+      .where(eq(productTags.productId, productId));
+
+    const tagIds = productTagsResult.map(pt => pt.tagId);
+
     // Find other products in the same categories
-    const relatedProductIds = await db
-      .select({ productId: productCategories.productId })
+    const candidateProductIds = await db
+      .selectDistinct({ productId: productCategories.productId })
       .from(productCategories)
       .where(
         and(
           inArray(productCategories.categoryId, categoryIds),
           sql`${productCategories.productId} != ${productId}`
         )
-      )
-      .groupBy(productCategories.productId)
-      .limit(limit);
+      );
 
-    if (relatedProductIds.length === 0) {
+    if (candidateProductIds.length === 0) {
       return [];
     }
 
-    const ids = relatedProductIds.map(r => r.productId);
+    const candidateIds = candidateProductIds.map(r => r.productId);
 
-    // Get the actual products
-    const relatedProducts = await db
+    // Get candidate products with their tags for scoring
+    const candidateProducts = await db
       .select()
       .from(products)
       .where(
         and(
-          inArray(products.id, ids),
+          inArray(products.id, candidateIds),
           eq(products.status, 'active'),
           isNull(products.deletedAt)
         )
-      )
-      .limit(limit);
+      );
+
+    // Get tags for all candidate products
+    const candidateTagsMap = new Map<string, string[]>();
+    if (candidateProducts.length > 0) {
+      const allCandidateTags = await db
+        .select({
+          productId: productTags.productId,
+          tagId: productTags.tagId
+        })
+        .from(productTags)
+        .where(inArray(productTags.productId, candidateProducts.map(p => p.id)));
+
+      for (const tag of allCandidateTags) {
+        if (!candidateTagsMap.has(tag.productId)) {
+          candidateTagsMap.set(tag.productId, []);
+        }
+        candidateTagsMap.get(tag.productId)!.push(tag.tagId);
+      }
+    }
+
+    // Calculate scores for each candidate
+    const scoredProducts = candidateProducts.map(candidate => {
+      let score = 0;
+
+      // Category match: 50% (already guaranteed since we filtered by category)
+      score += 50;
+
+      // Tag overlap: 30%
+      const candidateTags = candidateTagsMap.get(candidate.id) || [];
+      if (tagIds.length > 0 && candidateTags.length > 0) {
+        const tagOverlap = candidateTags.filter(t => tagIds.includes(t)).length;
+        const tagScore = (tagOverlap / Math.max(tagIds.length, 1)) * 30;
+        score += tagScore;
+      }
+
+      // Price similarity: 20%
+      const priceDiff = Math.abs(candidate.basePrice - product.basePrice);
+      const priceScore = 20 * (1 - priceDiff / Math.max(product.basePrice, 1));
+      score += Math.max(0, priceScore);
+
+      return { product: candidate, score };
+    });
+
+    // Sort by score descending and take top results
+    scoredProducts.sort((a, b) => b.score - a.score);
+    const topProducts = scoredProducts.slice(0, limit).map(sp => sp.product);
 
     // Get images for each product
     const productsWithImages = await Promise.all(
-      relatedProducts.map(async (product) => {
+      topProducts.map(async (product) => {
         const images = await this.getImages(product.id);
         return { ...product, images };
       })
     );
 
     return productsWithImages;
+  }
+
+  async getFrequentlyBoughtTogether(productId: string, limit: number = 3) {
+    // Find orders containing this product
+    const ordersWithProduct = await db
+      .selectDistinct({ orderId: orderItems.orderId })
+      .from(orderItems)
+      .where(eq(orderItems.productId, productId));
+
+    if (ordersWithProduct.length === 0) {
+      return [];
+    }
+
+    const orderIds = ordersWithProduct.map(o => o.orderId);
+
+    // Find other products in those orders and count frequency
+    const coProducts = await db
+      .select({
+        productId: orderItems.productId,
+        frequency: count(orderItems.productId).as('frequency')
+      })
+      .from(orderItems)
+      .where(
+        and(
+          inArray(orderItems.orderId, orderIds),
+          sql`${orderItems.productId} != ${productId}`,
+          sql`${orderItems.productId} IS NOT NULL`
+        )
+      )
+      .groupBy(orderItems.productId)
+      .orderBy(desc(sql`frequency`))
+      .limit(limit);
+
+    if (coProducts.length === 0) {
+      return [];
+    }
+
+    const productIds = coProducts.map(cp => cp.productId).filter((id): id is string => id !== null);
+
+    // Fetch full product details
+    const productDetails = await db
+      .select()
+      .from(products)
+      .where(
+        and(
+          inArray(products.id, productIds),
+          eq(products.status, 'active'),
+          isNull(products.deletedAt)
+        )
+      );
+
+    // Get images for each product
+    const productsWithImages = await Promise.all(
+      productDetails.map(async (product) => {
+        const images = await this.getImages(product.id);
+        return { ...product, images };
+      })
+    );
+
+    // Map back to include frequency and maintain order
+    const result = coProducts
+      .map(cp => {
+        const product = productsWithImages.find(p => p.id === cp.productId);
+        if (!product) return null;
+        return {
+          product,
+          frequency: Number(cp.frequency)
+        };
+      })
+      .filter((item): item is { product: any; frequency: number } => item !== null);
+
+    return result;
   }
 
   async validateInventory(items: InventoryValidationItem[]) {
