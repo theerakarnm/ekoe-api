@@ -5,9 +5,12 @@ import {
   shippingAddresses,
   billingAddresses,
   orderStatusHistory,
+  orderGifts,
+  shipments,
 } from '../../core/database/schema/orders.schema';
 import { users } from '../../core/database/schema/auth-schema';
 import { products, productVariants } from '../../core/database/schema/products.schema';
+import { discountCodeUsage } from '../../core/database/schema/marketing.schema';
 import { eq, and, sql, desc, asc, ilike, or, gte } from 'drizzle-orm';
 import { NotFoundError, AppError } from '../../core/errors';
 import type {
@@ -16,6 +19,7 @@ import type {
   OrderDetail,
   GetOrdersParams,
 } from './orders.interface';
+import type { FreeGift } from '../cart/cart.interface';
 import { OrderStatusStateMachine, type OrderStatus, type FulfillmentStatus } from './order-status-state-machine';
 
 export class OrdersRepository {
@@ -27,7 +31,7 @@ export class OrdersRepository {
 
   /**
    * Create a new order with transactional support
-   * Handles order, items, addresses, and inventory atomically
+   * Handles order, items, addresses, inventory, discounts, gifts, and shipping atomically
    */
   async createOrder(data: CreateOrderRequest, orderData: {
     orderNumber: string;
@@ -36,6 +40,8 @@ export class OrdersRepository {
     taxAmount: number;
     discountAmount: number;
     totalAmount: number;
+    discountCodeId?: string;
+    eligibleGifts: FreeGift[];
     items: Array<{
       productId: string;
       variantId?: string;
@@ -161,7 +167,46 @@ export class OrdersRepository {
         })
         .returning();
 
-      // 5. Create initial status history
+      // 5. Create shipment record with shipping method
+      const shippingMethod = data.shippingMethod || 'standard';
+      const [shipment] = await tx
+        .insert(shipments)
+        .values({
+          orderId: order.id,
+          shippingMethod: shippingMethod,
+          status: 'pending',
+        })
+        .returning();
+
+      // 6. Add free gifts to order
+      const createdGifts = [];
+      for (const gift of orderData.eligibleGifts) {
+        const [orderGift] = await tx
+          .insert(orderGifts)
+          .values({
+            orderId: order.id,
+            giftName: gift.name,
+            giftDescription: gift.description,
+            giftImageUrl: gift.imageUrl,
+            giftValue: gift.value,
+          })
+          .returning();
+        createdGifts.push(orderGift);
+      }
+
+      // 7. Track discount code usage if discount was applied
+      if (orderData.discountCodeId && orderData.discountAmount > 0) {
+        await tx
+          .insert(discountCodeUsage)
+          .values({
+            discountCodeId: orderData.discountCodeId,
+            orderId: order.id,
+            discountAmount: orderData.discountAmount,
+            userId: data.userId || undefined,
+          });
+      }
+
+      // 8. Create initial status history
       await tx
         .insert(orderStatusHistory)
         .values({

@@ -7,6 +7,9 @@ import { orderStatusStateMachine, type OrderStatus } from './order-status-state-
 import { emailService } from '../../core/email';
 import { config } from '../../core/config';
 import { logger } from '../../core/logger';
+import { cartDomain } from '../cart/cart.domain';
+import { cartRepository } from '../cart/cart.repository';
+import { calculateShippingCost, isValidShippingMethod } from '../../core/config/shipping.config';
 import type {
   CreateOrderRequest,
   UpdateOrderStatusRequest,
@@ -15,6 +18,7 @@ import type {
   OrderStatusUpdate,
   OrderDetail,
 } from './orders.interface';
+import type { FreeGift } from '../cart/cart.interface';
 
 export class OrdersDomain {
   private stateMachine = orderStatusStateMachine;
@@ -109,16 +113,20 @@ export class OrdersDomain {
   }
 
   /**
-   * Calculate order pricing
+   * Calculate order pricing with discount and shipping method support
    */
   private async calculateOrderPricing(
-    items: Array<{ productId: string; variantId?: string; quantity: number }>
+    items: Array<{ productId: string; variantId?: string; quantity: number }>,
+    discountCode?: string,
+    shippingMethod?: string,
+    userId?: string
   ): Promise<{
     subtotal: number;
     shippingCost: number;
     taxAmount: number;
     discountAmount: number;
     totalAmount: number;
+    discountCodeId?: string;
     items: Array<{
       productId: string;
       variantId?: string;
@@ -187,14 +195,64 @@ export class OrdersDomain {
       });
     }
 
-    // Calculate shipping (flat rate for now)
-    const shippingCost = subtotal >= 100000 ? 0 : 5000; // Free shipping over 1000 THB
+    // Apply discount code if provided
+    let discountAmount = 0;
+    let discountCodeId: string | undefined;
+    let hasFreeShippingDiscount = false;
+
+    if (discountCode) {
+      const discountValidation = await cartDomain.validateDiscountCode(
+        discountCode,
+        subtotal,
+        items,
+        userId
+      );
+
+      if (!discountValidation.isValid) {
+        throw new ValidationError(
+          discountValidation.error || 'Invalid discount code',
+          { errorCode: discountValidation.errorCode }
+        );
+      }
+
+      // Get discount code details for tracking
+      const dbDiscountCode = await cartRepository.getDiscountCodeByCode(discountCode);
+      if (dbDiscountCode) {
+        discountCodeId = dbDiscountCode.id;
+        hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
+        
+        // Calculate discount amount (will be adjusted for free shipping later)
+        if (discountValidation.discountAmount) {
+          discountAmount = discountValidation.discountAmount;
+        }
+      }
+    }
+
+    // Calculate shipping cost based on selected method
+    const method = shippingMethod || 'standard';
+    
+    // Validate shipping method
+    if (!isValidShippingMethod(method)) {
+      throw new ValidationError(`Invalid shipping method: ${method}`);
+    }
+
+    // Calculate shipping cost (considering free shipping discount and threshold)
+    let shippingCost = 0;
+    if (hasFreeShippingDiscount) {
+      // Free shipping from discount code
+      shippingCost = 0;
+      // Set discount amount to what shipping would have cost
+      const regularShippingCost = subtotal >= 100000 ? 0 : calculateShippingCost(method);
+      discountAmount = regularShippingCost;
+    } else if (subtotal >= 100000) {
+      // Free shipping over 1000 THB (100000 cents)
+      shippingCost = 0;
+    } else {
+      shippingCost = calculateShippingCost(method);
+    }
 
     // Calculate tax (7% VAT)
     const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
-
-    // Discount amount (to be implemented with discount codes)
-    const discountAmount = 0;
 
     // Calculate total
     const totalAmount = subtotal + shippingCost + taxAmount - discountAmount;
@@ -205,14 +263,15 @@ export class OrdersDomain {
       taxAmount,
       discountAmount,
       totalAmount,
+      discountCodeId,
       items: processedItems,
     };
   }
 
   /**
-   * Create a new order
+   * Create a new order with discount and shipping method support
    */
-  async createOrder(data: CreateOrderRequest) {
+  async createOrder(data: CreateOrderRequest, userId?: string) {
     // Validate addresses
     this.validateAddress(data.shippingAddress);
     this.validateAddress(data.billingAddress);
@@ -220,16 +279,26 @@ export class OrdersDomain {
     // Validate stock availability
     await this.validateStockAvailability(data.items as Array<{ productId: string; variantId?: string; quantity: number }>);
 
-    // Calculate pricing
-    const orderData = await this.calculateOrderPricing(data.items as Array<{ productId: string; variantId?: string; quantity: number }>);
+    // Calculate pricing with discount and shipping method
+    const orderData = await this.calculateOrderPricing(
+      data.items as Array<{ productId: string; variantId?: string; quantity: number }>,
+      data.discountCode,
+      data.shippingMethod,
+      userId
+    );
 
     // Generate order number
     const orderNumber = this.generateOrderNumber();
+
+    // Get eligible free gifts
+    const productIds = data.items.map(item => item.productId);
+    const eligibleGifts = await cartRepository.getEligibleGifts(orderData.subtotal, productIds);
 
     // Create order with transaction
     const order = await ordersRepository.createOrder(data, {
       orderNumber,
       ...orderData,
+      eligibleGifts,
     });
 
     return order;

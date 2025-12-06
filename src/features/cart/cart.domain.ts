@@ -1,8 +1,6 @@
 import { cartRepository } from './cart.repository';
-import { db } from '../../core/database';
-import { products, productVariants } from '../../core/database/schema/products.schema';
-import { eq } from 'drizzle-orm';
-import { ValidationError, NotFoundError } from '../../core/errors';
+import { ValidationError } from '../../core/errors';
+import { calculateShippingCost, isValidShippingMethod } from '../../core/config/shipping.config';
 import type {
   CartItemInput,
   ValidatedCart,
@@ -146,16 +144,10 @@ export class CartDomain {
     const subtotal = validatedCart.subtotal;
 
     // Get eligible free gifts
-    const productIds = items.map(item => item.productId);
     const freeGifts = await this.getEligibleFreeGifts(items, subtotal);
 
-    // Calculate shipping cost
-    const shippingCost = this.calculateShippingCost(shippingMethod || 'standard', subtotal);
-
-    // Calculate tax (7% VAT)
-    const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
-
-    // Apply discount if provided
+    // Check if discount code provides free shipping
+    let hasFreeShippingDiscount = false;
     let discountAmount = 0;
     let appliedDiscount;
 
@@ -166,6 +158,7 @@ export class CartDomain {
         const dbDiscountCode = await cartRepository.getDiscountCodeByCode(discountCode);
         
         if (dbDiscountCode) {
+          hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
           const applicableProductIds = dbDiscountCode.applicableToProducts as string[] | null;
           
           // Calculate discount with validated items for accurate product-specific discounts
@@ -183,15 +176,31 @@ export class CartDomain {
             value: dbDiscountCode.discountValue,
             amount: discountAmount,
           };
-
-          // If free shipping discount, set discount amount to shipping cost
-          if (dbDiscountCode.discountType === 'free_shipping') {
-            discountAmount = shippingCost;
-            appliedDiscount.amount = shippingCost;
-          }
         }
       }
     }
+
+    // Calculate shipping cost (after checking for free shipping discount)
+    const shippingCost = this.calculateShippingCostWithDiscount(
+      shippingMethod || 'standard', 
+      subtotal, 
+      hasFreeShippingDiscount
+    );
+
+    // If free shipping discount, set discount amount to the shipping cost that would have been charged
+    if (hasFreeShippingDiscount && appliedDiscount) {
+      // Calculate what shipping would have cost without the discount
+      const regularShippingCost = this.calculateShippingCostWithDiscount(
+        shippingMethod || 'standard',
+        subtotal,
+        false
+      );
+      discountAmount = regularShippingCost;
+      appliedDiscount.amount = regularShippingCost;
+    }
+
+    // Calculate tax (7% VAT)
+    const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
 
     // Calculate total
     const totalAmount = subtotal + shippingCost + taxAmount - discountAmount;
@@ -404,55 +413,39 @@ export class CartDomain {
 
   /**
    * Calculate shipping cost based on method
+   * Supports free shipping over threshold and free shipping discounts
    */
-  private calculateShippingCost(method: string, subtotal: number): number {
+  private calculateShippingCostWithDiscount(
+    method: string, 
+    subtotal: number, 
+    hasFreeShippingDiscount: boolean = false
+  ): number {
+    // Free shipping if discount code provides it
+    if (hasFreeShippingDiscount) {
+      return 0;
+    }
+
     // Free shipping over 1000 THB (100000 cents)
     if (subtotal >= 100000) {
       return 0;
     }
 
-    switch (method) {
-      case 'standard':
-        return 5000; // 50 THB
-      case 'express':
-        return 10000; // 100 THB
-      case 'next-day':
-        return 15000; // 150 THB
-      default:
-        return 5000; // Default to standard
+    // Validate shipping method
+    if (!isValidShippingMethod(method)) {
+      method = 'standard'; // Default to standard if invalid
     }
+
+    // Use centralized shipping cost calculation
+    return calculateShippingCost(method);
   }
 
   /**
    * Get available shipping methods
    */
   getShippingMethods(): ShippingMethod[] {
-    return [
-      {
-        id: 'standard',
-        name: 'Standard Shipping',
-        description: 'Delivery within 5-7 business days',
-        cost: 5000, // 50 THB
-        estimatedDays: 7,
-        carrier: 'Thailand Post',
-      },
-      {
-        id: 'express',
-        name: 'Express Shipping',
-        description: 'Delivery within 2-3 business days',
-        cost: 10000, // 100 THB
-        estimatedDays: 3,
-        carrier: 'Kerry Express',
-      },
-      {
-        id: 'next-day',
-        name: 'Next Day Delivery',
-        description: 'Delivery by next business day',
-        cost: 15000, // 150 THB
-        estimatedDays: 1,
-        carrier: 'Flash Express',
-      },
-    ];
+    // Import and return shipping methods from centralized config
+    const { getAllShippingMethods } = require('../../core/config/shipping.config');
+    return getAllShippingMethods();
   }
 }
 

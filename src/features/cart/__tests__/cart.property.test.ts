@@ -521,7 +521,8 @@ describe('Cart Property-Based Tests', () => {
             const dbPrice = variantPriceMap.get(validatedItem.variantId!);
 
             // The validated price should match the database price, not the client price
-            expect(validatedItem.unitPrice).toBe(dbPrice);
+            expect(dbPrice).toBeDefined();
+            expect(validatedItem.unitPrice).toBe(dbPrice!);
 
             // The validated price should NOT match the random client price (unless by chance)
             // This verifies we're not using client-submitted prices
@@ -1491,6 +1492,7 @@ describe('Cart Property-Based Tests', () => {
         title: 'Free Shipping',
         description: 'Free shipping',
         discountType: 'free_shipping',
+        discountValue: 0, // Free shipping doesn't use discount value
         isActive: true,
       },
     ]);
@@ -1586,6 +1588,7 @@ describe('Cart Property-Based Tests', () => {
       title: 'Free Shipping Test',
       description: 'Free shipping discount',
       discountType: 'free_shipping',
+      discountValue: 0, // Free shipping doesn't use discount value
       isActive: true,
     });
 
@@ -1819,4 +1822,91 @@ describe('Cart Property-Based Tests', () => {
       await db.delete(discountCodes).where(eq(discountCodes.code, testCode));
     }
   });
-});
+
+  /**
+   * Property 22: Shipping method data completeness
+   * 
+   * For any shipping method returned by the API, it should contain name, description, 
+   * cost, and estimated delivery time
+   * 
+   * Validates: Requirements 4.1
+   * 
+   * Feature: cart-and-checkout-logic, Property 22: Shipping method data completeness
+   */
+  test('Property 22: Shipping method data completeness', async () => {
+    // Import shipping methods
+    const { getAllShippingMethods } = await import('../../../core/config/shipping.config');
+    
+    await fc.assert(
+      fc.asyncProperty(
+        // We don't need to generate random data here - we're testing the static configuration
+        // But we use fc.constant to maintain the property-based testing structure
+        fc.constant(null),
+        async () => {
+          // Get all shipping methods
+          const shippingMethods = getAllShippingMethods();
+
+          // Property 1: At least one shipping method should be available
+          expect(shippingMethods.length).toBeGreaterThan(0);
+
+          // Property 2: Each shipping method should have all required fields
+          for (const method of shippingMethods) {
+            // Check id is present and non-empty
+            expect(method.id).toBeDefined();
+            expect(typeof method.id).toBe('string');
+            expect(method.id.length).toBeGreaterThan(0);
+
+            // Check name is present and non-empty
+            expect(method.name).toBeDefined();
+            expect(typeof method.name).toBe('string');
+            expect(method.name.length).toBeGreaterThan(0);
+
+            // Check description is present and non-empty
+            expect(method.description).toBeDefined();
+            expect(typeof method.description).toBe('string');
+            expect(method.description.length).toBeGreaterThan(0);
+
+            // Check cost is present and non-negative
+            expect(method.cost).toBeDefined();
+            expect(typeof method.cost).toBe('number');
+            expect(method.cost).toBeGreaterThanOrEqual(0);
+
+            // Check estimatedDays is present and positive
+            expect(method.estimatedDays).toBeDefined();
+            expect(typeof method.estimatedDays).toBe('number');
+            expect(method.estimatedDays).toBeGreaterThan(0);
+          }
+
+          // Property 3: All shipping method IDs should be unique
+          const ids = shippingMethods.map(m => m.id);
+          const uniqueIds = new Set(ids);
+          expect(ids.length).toBe(uniqueIds.size);
+
+          // Property 4: Shipping methods should be ordered by cost (standard < express < next-day)
+          // This is a business rule - faster shipping should cost more
+          for (let i = 0; i < shippingMethods.length - 1; i++) {
+            const current = shippingMethods[i];
+            const next = shippingMethods[i + 1];
+            
+            // If delivery time is shorter, cost should be higher
+            if (current.estimatedDays > next.estimatedDays) {
+              expect(current.cost).toBeLessThan(next.cost);
+            }
+          }
+
+          // Property 5: Standard shipping method should exist
+          const hasStandard = shippingMethods.some(m => m.id === 'standard');
+          expect(hasStandard).toBe(true);
+
+          // Property 6: Express shipping method should exist
+          const hasExpress = shippingMethods.some(m => m.id === 'express');
+          expect(hasExpress).toBe(true);
+
+          // Property 7: Next-day shipping method should exist
+          const hasNextDay = shippingMethods.some(m => m.id === 'next-day');
+          expect(hasNextDay).toBe(true);
+        }
+      ),
+      { numRuns: 100 } // Run 100 iterations as specified in design
+    );
+  });

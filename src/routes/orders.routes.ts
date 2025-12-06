@@ -8,6 +8,7 @@ import {
   updateOrderStatusSchema,
 } from '../features/orders/orders.interface';
 import { auth } from '../libs/auth';
+import { getAllShippingMethods } from '../core/config/shipping.config';
 
 const ordersRoutes = new Hono<{
   Variables: {
@@ -16,11 +17,22 @@ const ordersRoutes = new Hono<{
   };
 }>();
 
+// Public endpoints
+// Get available shipping methods
+ordersRoutes.get('/shipping-methods', async (c) => {
+  const shippingMethods = getAllShippingMethods();
+  return ResponseBuilder.success(c, shippingMethods);
+});
+
 // Customer endpoints
 // Create order (checkout) - requires authentication
 ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
   const data = await c.req.json();
-  const order = await ordersDomain.createOrder(data);
+  const user = c.get('user');
+  
+  // Pass userId for discount code usage tracking
+  const order = await ordersDomain.createOrder(data, user?.id);
+  
   return ResponseBuilder.created(c, order);
 });
 

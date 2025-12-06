@@ -30,6 +30,8 @@ export const createOrderSchema = z.object({
   billingAddress: addressSchema,
   customerNote: z.string().optional(),
   discountCode: z.string().optional(),
+  shippingMethod: z.string().optional().default('standard'),
+  userId: z.string().optional(), // For tracking discount usage per customer
 });
 
 // Update order status schema
