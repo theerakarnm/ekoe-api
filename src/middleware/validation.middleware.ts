@@ -3,6 +3,8 @@ import { zValidator } from '@hono/zod-validator';
 
 export const validateJson = (schema: z.ZodSchema) =>
   zValidator('json', schema, (result, c) => {
+    console.log(result);
+
     if (!result.success) {
       const details = result.error.errors.map((e) => ({
         path: e.path.join('.'),

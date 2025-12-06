@@ -102,7 +102,7 @@ router.route('/products', productsRoutes);
 router.route('/cart', cartRoutes);
 
 // Orders routes (includes both /orders and /admin/orders paths)
-router.route('/', ordersRoutes);
+router.route('/orders', ordersRoutes);
 
 // Analytics routes (includes /admin/analytics and /admin/dashboard paths)
 router.route('/', analyticsRoutes);

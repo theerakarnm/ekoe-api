@@ -29,10 +29,10 @@ ordersRoutes.get('/shipping-methods', async (c) => {
 ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
   const data = await c.req.json();
   const user = c.get('user');
-  
+
   // Pass userId for discount code usage tracking
   const order = await ordersDomain.createOrder(data, user?.id);
-  
+
   return ResponseBuilder.created(c, order);
 });
 
@@ -40,15 +40,15 @@ ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), asy
 ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
   const id = c.req.param('id');
   const user = c.get('user');
-  
+
   // Get order and verify it belongs to the user
   const order = await ordersDomain.getOrderById(id);
-  
+
   // Allow access if user is the order owner or if email matches (for guest checkout)
   if (order.userId !== user?.id && order.email !== user?.email) {
     return ResponseBuilder.error(c, 'Unauthorized', 403, 'FORBIDDEN');
   }
-  
+
   return ResponseBuilder.success(c, order);
 });
 
@@ -56,15 +56,15 @@ ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
 ordersRoutes.get('/:id/status-history', requireCustomerAuth, async (c) => {
   const id = c.req.param('id');
   const user = c.get('user');
-  
+
   // Get order and verify it belongs to the user
   const order = await ordersDomain.getOrderById(id);
-  
+
   // Allow access if user is the order owner or if email matches (for guest checkout)
   if (order.userId !== user?.id && order.email !== user?.email) {
     return ResponseBuilder.error(c, 'Unauthorized', 403, 'FORBIDDEN');
   }
-  
+
   const history = await ordersDomain.getOrderStatusHistory(id);
   return ResponseBuilder.success(c, { history });
 });
@@ -121,7 +121,7 @@ ordersRoutes.get('/admin/orders/:id/valid-next-statuses', requireAdminAuth, asyn
   const id = c.req.param('id');
   const order = await ordersDomain.getOrderById(id);
   const validNextStatuses = await ordersDomain.getValidNextStatuses(id);
-  
+
   return ResponseBuilder.success(c, {
     currentStatus: order.status,
     validNextStatuses,
