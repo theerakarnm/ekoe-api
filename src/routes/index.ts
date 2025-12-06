@@ -6,6 +6,7 @@ import ordersRoutes from './orders.routes';
 import customersRoutes from './customers.routes';
 import analyticsRoutes from './analytics.routes';
 import paymentsRoutes from './payments.routes';
+import cartRoutes from './cart.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 import {
@@ -98,6 +99,7 @@ router.route('/users', usersRoutes);
 router.route('/admin', adminRoutes);
 router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
+router.route('/cart', cartRoutes);
 
 // Orders routes (includes both /orders and /admin/orders paths)
 router.route('/', ordersRoutes);
