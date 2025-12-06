@@ -98,6 +98,60 @@ productsRoutes.get('/', optionalAuth, async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
+// Public endpoint to get related products for a specific product
+productsRoutes.get('/:id/related', optionalAuth, async (c) => {
+  try {
+    // Extract product ID from route params
+    const id = c.req.param('id');
+    
+    // Parse limit query parameter (default 4)
+    const limitParam = c.req.query('limit');
+    const limit = limitParam ? parseInt(limitParam, 10) : 4;
+    
+    // Validate limit is a positive number
+    if (isNaN(limit) || limit < 1) {
+      return ResponseBuilder.error(c, 'Invalid limit parameter', 400, 'INVALID_PARAMETER');
+    }
+    
+    // Call domain method to get related products
+    const relatedProducts = await productsDomain.getRelatedProducts(id, limit);
+    
+    // Return success response with products array
+    return ResponseBuilder.success(c, relatedProducts);
+  } catch (error: any) {
+    // Handle errors with appropriate status codes
+    if (error.code === 'NOT_FOUND') {
+      return ResponseBuilder.error(c, 'Product not found', 404, 'NOT_FOUND');
+    }
+    
+    // Handle other errors
+    return ResponseBuilder.error(c, error.message || 'Failed to fetch related products', 500, 'INTERNAL_ERROR');
+  }
+});
+
+// Public endpoint to get frequently bought together products
+productsRoutes.get('/:id/frequently-bought-together', optionalAuth, async (c) => {
+  try {
+    // Extract product ID from route params
+    const id = c.req.param('id');
+    
+    // Call domain method to get bundle
+    const bundle = await productsDomain.getFrequentlyBoughtTogether(id);
+    
+    // Return success response with products, totalPrice, and savings
+    // Handle empty results (return empty bundle)
+    return ResponseBuilder.success(c, bundle);
+  } catch (error: any) {
+    // Handle errors appropriately
+    if (error.code === 'NOT_FOUND') {
+      return ResponseBuilder.error(c, 'Product not found', 404, 'NOT_FOUND');
+    }
+    
+    // Handle other errors
+    return ResponseBuilder.error(c, error.message || 'Failed to fetch frequently bought together products', 500, 'INTERNAL_ERROR');
+  }
+});
+
 // Public endpoint to get a single product by ID (with optional auth for enhanced features)
 productsRoutes.get('/:id', optionalAuth, async (c) => {
   const id = c.req.param('id');
@@ -109,16 +163,6 @@ productsRoutes.get('/:id', optionalAuth, async (c) => {
   }
 
   return ResponseBuilder.success(c, product);
-});
-
-// Public endpoint to get related products
-productsRoutes.get('/related/:id', optionalAuth, async (c) => {
-  const id = c.req.param('id');
-  const limit = Number(c.req.query('limit') || '4');
-  
-  const relatedProducts = await productsDomain.getRelatedProducts(id, limit);
-  
-  return ResponseBuilder.success(c, relatedProducts);
 });
 
 // Public endpoint to validate inventory for cart items

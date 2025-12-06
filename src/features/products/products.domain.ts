@@ -2,6 +2,40 @@ import { productsRepository } from './products.repository';
 import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, InventoryValidationResult, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
 import { ValidationError } from '../../core/errors';
 
+// Simple in-memory cache for related products
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
+class SimpleCache {
+  private cache = new Map<string, CacheEntry<any>>();
+
+  set<T>(key: string, value: T, ttlSeconds: number): void {
+    const expiresAt = Date.now() + (ttlSeconds * 1000);
+    this.cache.set(key, { data: value, expiresAt });
+  }
+
+  get<T>(key: string): T | null {
+    const entry = this.cache.get(key);
+    if (!entry) return null;
+
+    // Check if expired
+    if (Date.now() > entry.expiresAt) {
+      this.cache.delete(key);
+      return null;
+    }
+
+    return entry.data as T;
+  }
+
+  clear(): void {
+    this.cache.clear();
+  }
+}
+
+const cache = new SimpleCache();
+
 export class ProductsDomain {
   /**
    * Validate and sanitize filter parameters
@@ -107,11 +141,57 @@ export class ProductsDomain {
   }
 
   async getRelatedProducts(productId: string, limit: number = 4) {
+    // Check cache first
+    const cacheKey = `related:${productId}:${limit}`;
+    const cached = cache.get<any[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     // First verify the product exists
     await productsRepository.findById(productId);
 
     // Get related products based on shared categories
-    return await productsRepository.getRelatedProducts(productId, limit);
+    const related = await productsRepository.getRelatedProducts(productId, limit);
+
+    // Cache results for 1 hour (3600 seconds)
+    cache.set(cacheKey, related, 3600);
+
+    return related;
+  }
+
+  async getFrequentlyBoughtTogether(productId: string): Promise<{
+    products: any[];
+    totalPrice: number;
+    savings: number;
+  }> {
+    // Get frequently bought together products from repository
+    const result = await productsRepository.getFrequentlyBoughtTogether(productId, 3);
+
+    // Handle empty results gracefully
+    if (result.length === 0) {
+      return {
+        products: [],
+        totalPrice: 0,
+        savings: 0
+      };
+    }
+
+    // Extract products from result
+    const products = result.map(r => r.product);
+
+    // Calculate total price by summing product base prices
+    const totalPrice = products.reduce((sum, p) => sum + p.basePrice, 0);
+
+    // Calculate 10% bundle discount (savings)
+    const savings = Math.round(totalPrice * 0.1);
+
+    // Return products array, total price (after discount), and savings
+    return {
+      products,
+      totalPrice: totalPrice - savings,
+      savings
+    };
   }
 
   async updateProductImage(imageId: string, data: {
