@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import { requireAdminAuth, requireCustomerAuth } from '../middleware/auth.middleware';
 import { validateJson } from '../middleware/validation.middleware';
-import { rateLimit } from '../middleware/rate-limit.middleware';
+import { rateLimit, webhookRateLimit } from '../middleware/rate-limit.middleware';
 import { ResponseBuilder } from '../core/response';
 import { paymentsDomain } from '../features/payments/payments.domain';
 import {
@@ -154,7 +154,7 @@ paymentsRoutes.get('/payments/2c2p/return', async (c) => {
  * POST /api/webhooks/promptpay
  * Handle PromptPay webhook notifications
  */
-paymentsRoutes.post('/webhooks/promptpay', async (c) => {
+paymentsRoutes.post('/webhooks/promptpay', webhookRateLimit, async (c) => {
   try {
     const payload = await c.req.json();
     const signature = c.req.header('x-webhook-signature') || '';

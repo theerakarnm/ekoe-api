@@ -9,6 +9,7 @@ import {
   validateDiscountSchema,
 } from '../features/cart/cart.interface';
 import { auth } from '../libs/auth';
+import { cartValidationRateLimit, discountValidationRateLimit } from '../middleware/rate-limit.middleware';
 
 const cart = new Hono<{
   Variables: {
@@ -21,7 +22,7 @@ const cart = new Hono<{
  * POST /api/cart/validate
  * Validate cart items and return accurate pricing
  */
-cart.post('/validate', zValidator('json', validateCartSchema), async (c) => {
+cart.post('/validate', cartValidationRateLimit, zValidator('json', validateCartSchema), async (c) => {
   try {
     const { items } = c.req.valid('json');
 
@@ -75,13 +76,13 @@ cart.get('/gifts', async (c) => {
  * POST /api/cart/discount/validate
  * Validate discount code
  */
-cart.post('/discount/validate', zValidator('json', validateDiscountSchema), async (c) => {
+cart.post('/discount/validate', discountValidationRateLimit, zValidator('json', validateDiscountSchema), async (c) => {
   try {
     const { code, subtotal, items } = c.req.valid('json');
 
     // Get user ID from session if available
     const userId = c.var.user?.id
-    
+
     const validation = await cartDomain.validateDiscountCode(code, subtotal, items, userId);
 
     return c.json(ResponseBuilder.success(c, validation));

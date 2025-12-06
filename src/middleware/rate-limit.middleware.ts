@@ -144,3 +144,34 @@ export const authRateLimit = rateLimit({
   },
 });
 
+// Cart validation rate limit (30 requests per minute)
+export const cartValidationRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 30,
+  keyGenerator: (c) => {
+    const ip = defaultKeyGenerator(c);
+    return `cart-validate:${ip}`;
+  },
+});
+
+// Discount validation rate limit (20 requests per minute)
+export const discountValidationRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 20,
+  keyGenerator: (c) => {
+    const ip = defaultKeyGenerator(c);
+    return `discount-validate:${ip}`;
+  },
+});
+
+// Webhook rate limit (100 requests per minute per IP)
+// Higher limit since legitimate webhooks may come in bursts
+export const webhookRateLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  maxRequests: 100,
+  keyGenerator: (c) => {
+    const ip = defaultKeyGenerator(c);
+    return `webhook:${ip}`;
+  },
+});
+
