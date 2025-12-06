@@ -666,8 +666,49 @@ export class ProductsRepository {
       total = Number((totalCountResult[0] as any)?.count || 0);
     }
 
+    // Get images for these products
+    const productIds = items.map(p => p.id);
+    const imagesMap = new Map<string, {
+      productId: string;
+      url: string;
+      altText?: string | null;
+      description?: string | null;
+      isPrimary: boolean | null;
+      createdAt: string;
+    }[]>();
+
+    if (productIds.length > 0) {
+      const images = await db
+        .select({
+          productId: productImages.productId,
+          url: productImages.url,
+          altText: productImages.altText,
+          description: productImages.description,
+          isPrimary: productImages.isPrimary,
+          createdAt: productImages.createdAt
+        })
+        .from(productImages)
+        .where(inArray(productImages.productId, productIds))
+        .orderBy(asc(productImages.sortOrder));
+
+      for (const img of images) {
+        if (!imagesMap.has(img.productId)) {
+          imagesMap.set(img.productId, []);
+        }
+        imagesMap.get(img.productId)?.push({
+          ...img,
+          createdAt: img.createdAt.toISOString(),
+        });
+      }
+    }
+
+    const productsWithImages = items.map(p => ({
+      ...p,
+      images: imagesMap.get(p.id) || []
+    }));
+
     return {
-      data: items,
+      data: productsWithImages,
       pagination: {
         page,
         limit,
