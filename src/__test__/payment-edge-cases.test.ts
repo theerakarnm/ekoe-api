@@ -14,7 +14,7 @@ mock.module('../libs/auth', () => {
       api: {
         getSession: async () => {
           return {
-            user: { id: 'test-user-id', role: 'user', email: 'test@example.com', emailVerified: true },
+            user: { id: 'test-user-id', role: 'user', email: 'me@theerakarnm.dev', emailVerified: true },
             session: { id: 'test-session-id', userId: 'test-user-id' }
           };
         }
@@ -50,7 +50,7 @@ describe('Payment Edge Cases', () => {
       await db.insert(users).values({
         id: testUserId,
         name: 'Test User',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         emailVerified: true,
         role: 'user',
         createdAt: new Date(),

@@ -22,7 +22,7 @@ import { ValidationError } from '../../../core/errors';
 const mockGetOrderById = mock(() => Promise.resolve({
   id: 'test-order-id',
   orderNumber: 'ORD-123',
-  email: 'test@example.com',
+  email: 'me@theerakarnm.dev',
   status: 'pending',
   paymentStatus: 'pending',
   fulfillmentStatus: 'unfulfilled',
@@ -91,7 +91,7 @@ describe('Order Status Management API Logic', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'cancelled',
         paymentStatus: 'pending',
         fulfillmentStatus: 'unfulfilled',
@@ -146,7 +146,7 @@ describe('Order Status Management API Logic', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'delivered',
         paymentStatus: 'paid',
         fulfillmentStatus: 'fulfilled',
@@ -168,7 +168,7 @@ describe('Order Status Management API Logic', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'cancelled',
         paymentStatus: 'pending',
         fulfillmentStatus: 'unfulfilled',
@@ -190,7 +190,7 @@ describe('Order Status Management API Logic', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'refunded',
         paymentStatus: 'refunded',
         fulfillmentStatus: 'unfulfilled',

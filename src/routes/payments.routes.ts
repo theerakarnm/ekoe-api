@@ -198,7 +198,7 @@ paymentsRoutes.post('/webhooks/promptpay', webhookRateLimit, async (c) => {
  * POST /api/webhooks/2c2p
  * Handle 2C2P webhook notifications
  */
-paymentsRoutes.post('/webhooks/2c2p', async (c) => {
+paymentsRoutes.post('/webhooks/2c2p', webhookRateLimit, async (c) => {
   try {
     const payload = await c.req.json();
 

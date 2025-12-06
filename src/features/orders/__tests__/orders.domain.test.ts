@@ -7,7 +7,7 @@ import type { PaymentEvent } from '../orders.interface';
 const mockGetOrderById = mock(() => Promise.resolve({
   id: 'test-order-id',
   orderNumber: 'ORD-123',
-  email: 'test@example.com',
+  email: 'me@theerakarnm.dev',
   status: 'pending',
   paymentStatus: 'pending',
   fulfillmentStatus: 'unfulfilled',
@@ -23,7 +23,7 @@ const mockGetOrderById = mock(() => Promise.resolve({
 const mockUpdateOrderStatus = mock(() => Promise.resolve({
   id: 'test-order-id',
   orderNumber: 'ORD-123',
-  email: 'test@example.com',
+  email: 'me@theerakarnm.dev',
   status: 'processing',
   paymentStatus: 'pending',
   fulfillmentStatus: 'unfulfilled',
@@ -92,7 +92,7 @@ describe('OrdersDomain - State Machine Integration', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'cancelled',
         paymentStatus: 'pending',
         fulfillmentStatus: 'unfulfilled',
@@ -128,7 +128,7 @@ describe('OrdersDomain - State Machine Integration', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'delivered',
         paymentStatus: 'paid',
         fulfillmentStatus: 'fulfilled',
@@ -193,7 +193,7 @@ describe('OrdersDomain - State Machine Integration', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'delivered',
         paymentStatus: 'paid',
         fulfillmentStatus: 'fulfilled',
@@ -227,7 +227,7 @@ describe('OrdersDomain - State Machine Integration', () => {
       ordersRepository.getOrderById = mock(() => Promise.resolve({
         id: 'test-order-id',
         orderNumber: 'ORD-123',
-        email: 'test@example.com',
+        email: 'me@theerakarnm.dev',
         status: 'processing',
         paymentStatus: 'paid',
         fulfillmentStatus: 'unfulfilled',
