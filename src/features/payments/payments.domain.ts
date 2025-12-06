@@ -407,6 +407,43 @@ export class PaymentsDomain {
   }
 
   /**
+   * Check if payment has expired
+   * A payment is considered expired if it's still pending and has exceeded the expiration time
+   */
+  async checkPaymentExpiration(paymentId: string): Promise<{ expired: boolean; expiresAt: Date; now: Date }> {
+    const payment = await paymentsRepository.getPaymentById(paymentId);
+    if (!payment) {
+      throw new NotFoundError('Payment');
+    }
+
+    // Calculate expiration time from payment creation
+    const expiryMs = paymentConfig.settings.qrExpiryMinutes * 60 * 1000;
+    const expiresAt = new Date(payment.createdAt.getTime() + expiryMs);
+    const now = new Date();
+
+    // Payment is expired if it's still pending and current time is past expiration
+    const expired = payment.status === 'pending' && now > expiresAt;
+
+    logger.debug(
+      { 
+        paymentId, 
+        status: payment.status,
+        createdAt: payment.createdAt,
+        expiresAt,
+        now,
+        expired 
+      },
+      'Payment expiration check'
+    );
+
+    return {
+      expired,
+      expiresAt,
+      now,
+    };
+  }
+
+  /**
    * Handle PromptPay webhook
    */
   async handlePromptPayWebhook(

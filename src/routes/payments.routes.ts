@@ -98,6 +98,23 @@ paymentsRoutes.get('/payments/:id/status', requireCustomerAuth, async (c) => {
 });
 
 /**
+ * GET /api/payments/:id/expired
+ * Check if payment has exceeded expiration time
+ */
+paymentsRoutes.get('/payments/:id/expired', requireCustomerAuth, async (c) => {
+  const id = c.req.param('id');
+
+  const result = await paymentsDomain.checkPaymentExpiration(id);
+
+  logger.info(
+    { paymentId: id, expired: result.expired },
+    'Payment expiration checked'
+  );
+
+  return ResponseBuilder.success(c, result);
+});
+
+/**
  * GET /api/payments/2c2p/return
  * Handle 2C2P return URL after payment
  */
