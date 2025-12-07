@@ -14,8 +14,10 @@ import type {
   PaymentStatus,
   PaymentStatusResponse,
   PromptPayWebhookPayload,
+  TwoC2PReturnPayload,
   TwoC2PWebhookPayload,
 } from './payments.interface';
+import jwt from 'jsonwebtoken';
 
 // Lazy load orders domain to avoid circular dependency
 function getOrdersDomain() {
@@ -142,6 +144,7 @@ export class PaymentsDomain {
       merchantId: paymentConfig.twoC2P.merchantId,
       secretKey: paymentConfig.twoC2P.secretKey,
       apiUrl: paymentConfig.twoC2P.apiUrl,
+      backendReturnUrl: paymentConfig.twoC2P.backendReturnUrl,
     });
 
     // Create payment session with 2C2P
@@ -281,7 +284,7 @@ export class PaymentsDomain {
     // After transaction completes, trigger order status update through order domain
     // This ensures state machine validation and proper email notifications
     const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
-    
+
     if (updatedPayment) {
       try {
         // Await the event handling to ensure it completes
@@ -425,13 +428,13 @@ export class PaymentsDomain {
     const expired = payment.status === 'pending' && now > expiresAt;
 
     logger.debug(
-      { 
-        paymentId, 
+      {
+        paymentId,
         status: payment.status,
         createdAt: payment.createdAt,
         expiresAt,
         now,
-        expired 
+        expired
       },
       'Payment expiration check'
     );
@@ -472,7 +475,7 @@ export class PaymentsDomain {
 
     // Find payment by reference ID (order ID or payment ID)
     const payment = existingPayment || await paymentsRepository.getPaymentById(payload.referenceId);
-    
+
     if (!payment) {
       throw new NotFoundError('Payment');
     }
@@ -509,6 +512,7 @@ export class PaymentsDomain {
       merchantId: paymentConfig.twoC2P.merchantId,
       secretKey: paymentConfig.twoC2P.secretKey,
       apiUrl: paymentConfig.twoC2P.apiUrl,
+      backendReturnUrl: paymentConfig.twoC2P.backendReturnUrl,
     });
 
     // Verify webhook signature using 2C2P client
@@ -535,7 +539,7 @@ export class PaymentsDomain {
 
     // Find payment by payment ID (order_id in webhook is actually payment ID)
     let payment = existingPayment;
-    
+
     if (!payment) {
       payment = await paymentsRepository.getPaymentById(payload.order_id);
     }
@@ -605,10 +609,10 @@ export class PaymentsDomain {
         `Payment failed with status: ${payload.payment_status}`
       );
       logger.warn(
-        { 
-          paymentId: payment.id, 
+        {
+          paymentId: payment.id,
           transactionId: payload.transaction_ref,
-          status: payload.payment_status 
+          status: payload.payment_status
         },
         '2C2P payment failed via webhook'
       );
@@ -626,7 +630,7 @@ export class PaymentsDomain {
   }): Promise<PaymentStatusResponse> {
     // Find payment by payment ID (order_id in return params is actually payment ID)
     const payment = await paymentsRepository.getPaymentById(params.order_id);
-    
+
     if (!payment) {
       logger.error(
         { orderId: params.order_id },
@@ -639,17 +643,80 @@ export class PaymentsDomain {
     const currentStatus = await this.getPaymentStatus(payment.id);
 
     logger.info(
-      { 
-        paymentId: payment.id, 
+      {
+        paymentId: payment.id,
         returnStatus: params.payment_status,
         currentStatus: currentStatus.status,
-        transactionRef: params.transaction_ref 
+        transactionRef: params.transaction_ref
       },
       '2C2P return URL processed'
     );
 
     // Return current payment status
     return currentStatus;
+  }
+
+  /**
+   * Process 2C2P return data from POST request (Backend decoding)
+   * 
+   * @param payloadRaw - Raw payment response string (JWT or JSON wrapped)
+   */
+  async process2C2PReturnData(payloadRaw: string) {
+    try {
+      const decodedData = jwt.decode(payloadRaw) as TwoC2PReturnPayload;
+
+      const status = decodedData.respCode === '0000' ? 'completed' : 'failed';
+      const transactionRef = decodedData.tranRef;
+      const invoiceNo = decodedData.invoiceNo;
+
+
+      if (!invoiceNo) {
+        throw new ValidationError('Missing invoice/order number in return data');
+      }
+
+      // Reuse handle2C2PReturn logic to verify payment exists and get full status
+      // Note: handle2C2PReturn mainly just GETs the current status, it doesn't necessarily UPDATE it based on params
+      // So we might need to explicitly update if the webhook hasn't arrived yet.
+
+      // Check if we need to update status explicitly
+      const payment = await paymentsRepository.getPaymentById(invoiceNo);
+      if (payment) {
+        // Only update if currently pending and we have a definitive result
+        if (payment.status === 'pending') {
+          if (status === 'completed') {
+            await this.completePayment(payment.id);
+          } else if (status === 'failed') {
+            await this.failPayment(payment.id, decodedData.respDesc || 'Payment failed (return)');
+          }
+        }
+      } else {
+        // If payment not found by simple ID, it might be 2C2P specifics? 
+        // Usually invoiceNo matches our payment/order ID.
+        logger.warn({ invoiceNo }, 'Payment not found during 2C2P return processing');
+      }
+
+      // Return the standard status response
+      // We fetch fresh status to be sure
+      const currentStatus = await this.handle2C2PReturn({
+        order_id: invoiceNo,
+        payment_status: status,
+        transaction_ref: transactionRef
+      });
+
+      return {
+        ...currentStatus,
+        message: decodedData.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
+        transactionRef
+      };
+    } catch (error) {
+      logger.error(
+        {
+          error,
+          payloadRaw,
+        },
+        'Failed to handle 2C2P return event'
+      );
+    }
   }
 
   /**
@@ -747,7 +814,7 @@ export class PaymentsDomain {
     await db.transaction(async (tx) => {
       // Update payment with manual verification flag and mark as completed
       await paymentsRepository.markPaymentCompleted(paymentId, new Date());
-      
+
       // Store manual verification metadata
       await paymentsRepository.updatePaymentStatus(
         paymentId,
@@ -782,7 +849,7 @@ export class PaymentsDomain {
             .from(orders)
             .where(eq(orders.id, payment.orderId))
             .limit(1);
-          
+
           if (orderDetails[0]) {
             await emailService.sendPaymentConfirmationEmail(
               orderDetails[0].email,

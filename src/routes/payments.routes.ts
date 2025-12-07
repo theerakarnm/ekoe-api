@@ -73,7 +73,7 @@ paymentsRoutes.post(
     const result = await paymentsDomain.initiate2C2PPayment(
       orderId,
       amount,
-      returnUrl
+      returnUrl,
     );
 
     logger.info(
@@ -146,6 +146,39 @@ paymentsRoutes.get('/payments/2c2p/return', async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
+/**
+ * POST /api/payments/2c2p/return-data
+ * Handle 2C2P return data via POST (for when frontend posts the payload)
+ */
+import { process2C2PReturnSchema } from '../features/payments/payments.interface';
+
+paymentsRoutes.post(
+  '/payments/2c2p/return-data',
+  validateJson(process2C2PReturnSchema),
+  async (c) => {
+    const { payload } = await c.req.json();
+
+    const result = await paymentsDomain.process2C2PReturnData(payload);
+
+    if (!result) {
+      return ResponseBuilder.error(
+        c,
+        'Failed to process 2C2P return data',
+        500,
+        'INTERNAL_SERVER_ERROR'
+      );
+    }
+
+    logger.info(
+      { paymentId: result.paymentId, status: result.status },
+      '2C2P return data processed via POST API'
+    );
+
+    return ResponseBuilder.success(c, result);
+  }
+);
+
+
 // ============================================================================
 // Webhook Routes (No authentication - signature verified in handler)
 // ============================================================================
@@ -160,10 +193,10 @@ paymentsRoutes.post('/webhooks/promptpay', webhookRateLimit, async (c) => {
     const signature = c.req.header('x-webhook-signature') || '';
 
     logger.info(
-      { 
+      {
         transactionId: payload.transactionId,
         status: payload.status,
-        referenceId: payload.referenceId 
+        referenceId: payload.referenceId
       },
       'PromptPay webhook received'
     );
@@ -203,10 +236,10 @@ paymentsRoutes.post('/webhooks/2c2p', webhookRateLimit, async (c) => {
     const payload = await c.req.json();
 
     logger.info(
-      { 
+      {
         orderId: payload.order_id,
         paymentStatus: payload.payment_status,
-        transactionRef: payload.transaction_ref 
+        transactionRef: payload.transaction_ref
       },
       '2C2P webhook received'
     );
@@ -215,9 +248,9 @@ paymentsRoutes.post('/webhooks/2c2p', webhookRateLimit, async (c) => {
     await paymentsDomain.handle2C2PWebhook(payload);
 
     logger.info(
-      { 
+      {
         orderId: payload.order_id,
-        transactionRef: payload.transaction_ref 
+        transactionRef: payload.transaction_ref
       },
       '2C2P webhook processed successfully'
     );
@@ -316,9 +349,9 @@ paymentsRoutes.post(
       'Payment manually verified by admin'
     );
 
-    return ResponseBuilder.success(c, { 
+    return ResponseBuilder.success(c, {
       message: 'Payment verified successfully',
-      paymentId: id 
+      paymentId: id
     });
   }
 );
@@ -353,9 +386,9 @@ paymentsRoutes.post(
       'Payment refunded by admin'
     );
 
-    return ResponseBuilder.success(c, { 
+    return ResponseBuilder.success(c, {
       message: 'Payment refunded successfully',
-      paymentId: id 
+      paymentId: id
     });
   }
 );

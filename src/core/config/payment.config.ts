@@ -21,8 +21,9 @@ const paymentConfigSchema = z.object({
   twoC2P: z.object({
     merchantId: isTestMode ? z.string() : z.string().min(1, '2C2P merchant ID is required'),
     secretKey: isTestMode ? z.string() : z.string().min(1, '2C2P secret key is required'),
-    apiUrl: z.string().url('2C2P API URL must be a valid URL').default('https://api.2c2p.com'),
+    apiUrl: z.string().url('2C2P API URL must be a valid URL').default('https://sandbox-pgw.2c2p.com'),
     webhookSecret: isTestMode ? z.string() : z.string().min(1, '2C2P webhook secret is required'),
+    backendReturnUrl: isTestMode ? z.string() : z.string().min(1, '2C2P backend return URL is required'),
   }),
   settings: z.object({
     qrExpiryMinutes: z.number().int().positive().default(15),
@@ -48,8 +49,9 @@ function loadPaymentConfig(): PaymentConfig {
     twoC2P: {
       merchantId: process.env.TWOC2P_MERCHANT_ID || '',
       secretKey: process.env.TWOC2P_SECRET_KEY || '',
-      apiUrl: process.env.TWOC2P_API_URL || 'https://api.2c2p.com',
+      apiUrl: process.env.TWOC2P_API_URL || 'https://sandbox-pgw.2c2p.com',
       webhookSecret: process.env.TWOC2P_WEBHOOK_SECRET || '',
+      backendReturnUrl: process.env.TWOC2P_BACKEND_RETURN_URL || '',
     },
     settings: {
       qrExpiryMinutes: Number(process.env.PAYMENT_QR_EXPIRY_MINUTES) || 15,

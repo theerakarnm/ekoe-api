@@ -1,3 +1,4 @@
+import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { logger } from '../core/logger';
 import { ValidationError } from '../core/errors';
@@ -6,6 +7,7 @@ export interface TwoC2PConfig {
   merchantId: string;
   secretKey: string;
   apiUrl: string;
+  backendReturnUrl: string;
 }
 
 export interface CreatePaymentSessionParams {
@@ -13,6 +15,7 @@ export interface CreatePaymentSessionParams {
   amount: number;
   currency: string;
   returnUrl: string;
+  description?: string;
 }
 
 export interface PaymentSessionResponse {
@@ -20,10 +23,36 @@ export interface PaymentSessionResponse {
   sessionId: string;
 }
 
+interface PaymentTokenPayload {
+  merchantID: string;
+  invoiceNo: string;
+  description: string;
+  amount: number | string;
+  currencyCode: string;
+  paymentChannel: string[];
+  backendReturnUrl: string;
+  frontendReturnUrl?: string;
+  userDefined1?: string;
+  userDefined2?: string;
+  userDefined3?: string;
+  userDefined4?: string;
+  userDefined5?: string;
+  nonceStr?: string;
+  iat?: number;
+}
+
+interface PaymentTokenResponse {
+  respCode: string;
+  respDesc: string;
+  webPaymentUrl?: string;
+  paymentToken?: string;
+}
+
 export class TwoC2PClient {
   private merchantId: string;
   private secretKey: string;
   private apiUrl: string;
+  private backendReturnUrl: string;
 
   constructor(config: TwoC2PConfig) {
     if (!config.merchantId || !config.secretKey || !config.apiUrl) {
@@ -32,78 +61,105 @@ export class TwoC2PClient {
 
     this.merchantId = config.merchantId;
     this.secretKey = config.secretKey;
-    this.apiUrl = config.apiUrl;
+    this.backendReturnUrl = config.backendReturnUrl;
+    // Normalize API URL (remove trailing slash if present)
+    this.apiUrl = config.apiUrl.replace(/\/$/, '');
   }
 
   /**
-   * Generate HMAC-SHA256 hash for API requests and webhook verification
+   * Generate JWT payload for 2C2P API requests
+   * Uses HS256 algorithm as required by PGW v4.3
    */
-  generateHash(data: string): string {
-    return crypto
-      .createHmac('sha256', this.secretKey)
-      .update(data)
-      .digest('hex');
+  private generateJwtPayload(payload: object): string {
+    return jwt.sign(payload, this.secretKey, { algorithm: 'HS256' });
   }
 
   /**
-   * Verify webhook signature
+   * Decode JWT response from 2C2P API
    */
-  verifyWebhookSignature(payload: any, signature: string): boolean {
+  private decodeJwtResponse(token: string): PaymentTokenResponse {
+    const decoded = jwt.decode(token);
+    if (!decoded || typeof decoded === 'string') {
+      throw new Error('Invalid JWT response from 2C2P');
+    }
+    return decoded as PaymentTokenResponse;
+  }
+
+  /**
+   * Verify and decode webhook payload from 2C2P backend notification
+   */
+  verifyWebhookPayload(jwtPayload: string): Record<string, unknown> | null {
     try {
-      // Construct data string in the same order as 2C2P expects
-      const dataToHash = `${payload.merchant_id}${payload.order_id}${payload.payment_status}${payload.amount}${payload.currency}`;
-      const expectedSignature = this.generateHash(dataToHash);
-
-      // Use timing-safe comparison to prevent timing attacks
-      return crypto.timingSafeEqual(
-        Buffer.from(signature),
-        Buffer.from(expectedSignature)
-      );
+      // Verify the JWT using the secret key
+      const decoded = jwt.verify(jwtPayload, this.secretKey, { algorithms: ['HS256'] });
+      if (typeof decoded === 'string') {
+        return null;
+      }
+      return decoded as Record<string, unknown>;
     } catch (error) {
-      logger.error({ error }, 'Error verifying 2C2P webhook signature');
-      return false;
+      logger.error({ error }, 'Error verifying 2C2P webhook payload');
+      return null;
     }
   }
 
   /**
-   * Create payment session with 2C2P
+   * Create payment session with 2C2P PGW v4.3
+   * 
+   * This method follows the PGW v4.3 Payment Token API specification:
+   * 1. Creates a JWT-signed payload with transaction details
+   * 2. POSTs to /payment/4.3/paymentToken endpoint
+   * 3. Decodes the JWT response to get webPaymentUrl
    */
   async createPaymentSession(
     params: CreatePaymentSessionParams
   ): Promise<PaymentSessionResponse> {
     try {
-      // Convert amount to string format (2 decimal places)
-      const amountStr = (params.amount / 100).toFixed(2);
+      // Convert amount to number format (2C2P expects amount in decimal)
+      // If amount is in cents (smallest unit), convert to decimal
+      const amountDecimal = params.amount / 100;
 
-      // Generate hash for request authentication
-      const dataToHash = `${this.merchantId}${params.orderId}${amountStr}${params.currency}`;
-      const hash = this.generateHash(dataToHash);
+      // Generate unique nonce for this request
+      const nonceStr = crypto.randomBytes(32).toString('hex');
 
-      // Prepare request payload
-      const requestPayload = {
-        version: '1.0',
-        merchant_id: this.merchantId,
-        order_id: params.orderId,
-        amount: amountStr,
-        currency: params.currency,
-        return_url: params.returnUrl,
-        hash_value: hash,
+      // Prepare JWT payload for Payment Token API
+      const tokenPayload: PaymentTokenPayload = {
+        merchantID: this.merchantId,
+        invoiceNo: params.orderId,
+        description: params.description || `Order ${params.orderId}`,
+        amount: amountDecimal.toFixed(2), // Format as string with 2 decimal places (e.g., "100.00")
+        currencyCode: params.currency,
+        paymentChannel: ['CC'],
+        nonceStr: nonceStr,
+        frontendReturnUrl: params.returnUrl,
+        backendReturnUrl: this.backendReturnUrl,
       };
 
       logger.info(
-        { orderId: params.orderId, amount: amountStr },
+        {
+          orderId: params.orderId,
+          amount: amountDecimal,
+          currency: params.currency
+        },
         'Creating 2C2P payment session'
       );
 
-      // Make API request to 2C2P
-      const response = await fetch(`${this.apiUrl}/payment/create`, {
+      // Generate JWT-signed payload
+      const jwtToken = this.generateJwtPayload(tokenPayload);
+
+      console.log(jwtToken);
+
+
+      // Make API request to 2C2P Payment Token endpoint
+      const response = await fetch(`${this.apiUrl}/payment/4.3/paymentToken`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(requestPayload),
+        body: JSON.stringify({ payload: jwtToken }),
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
+
+      console.log(response);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -114,22 +170,38 @@ export class TwoC2PClient {
         throw new Error(`2C2P API error: ${response.status} - ${errorText}`);
       }
 
-      const data = await response.json() as any;
+      const responseData = await response.json() as { payload: string };
+      console.log(responseData);
 
-      // Validate response
-      if (!data.payment_url || !data.session_id) {
-        logger.error({ data }, 'Invalid 2C2P API response');
-        throw new Error('Invalid response from 2C2P API');
+      // Decode JWT response
+      const decodedResponse = this.decodeJwtResponse(responseData.payload);
+
+      // Check response code (0000 = success)
+      if (decodedResponse.respCode !== '0000') {
+        logger.error(
+          {
+            respCode: decodedResponse.respCode,
+            respDesc: decodedResponse.respDesc
+          },
+          '2C2P payment token request failed'
+        );
+        throw new Error(`2C2P error: ${decodedResponse.respCode} - ${decodedResponse.respDesc}`);
+      }
+
+      // Validate response contains required fields
+      if (!decodedResponse.webPaymentUrl || !decodedResponse.paymentToken) {
+        logger.error({ response: decodedResponse }, 'Invalid 2C2P API response');
+        throw new Error('Invalid response from 2C2P API: missing payment URL or token');
       }
 
       logger.info(
-        { orderId: params.orderId, sessionId: data.session_id },
+        { orderId: params.orderId, paymentToken: decodedResponse.paymentToken },
         '2C2P payment session created successfully'
       );
 
       return {
-        paymentUrl: data.payment_url as string,
-        sessionId: data.session_id as string,
+        paymentUrl: decodedResponse.webPaymentUrl,
+        sessionId: decodedResponse.paymentToken,
       };
     } catch (error) {
       // Handle timeout errors

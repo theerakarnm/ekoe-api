@@ -66,6 +66,21 @@ export interface TwoC2PWebhookPayload {
   card_brand?: string;
 }
 
+export interface TwoC2PReturnPayload {
+  merchantID: string;
+  invoiceNo: string;
+  accountNo: string;
+  amount: string;
+  currencyCode: string;
+  tranRef: string;
+  referenceNo: string;
+  approvalCode: string;
+  eci: string;
+  transactionDateTime: string;
+  respCode: string;
+  respDesc: string;
+}
+
 // Zod validation schemas
 export const createPromptPayPaymentSchema = z.object({
   orderId: z.string().uuid(),
@@ -82,6 +97,11 @@ export const getPaymentStatusSchema = z.object({
   id: z.string().uuid(),
 });
 
+
 export const manualVerifyPaymentSchema = z.object({
   note: z.string().optional(),
 });
+
+export const process2C2PReturnSchema = z.object({
+  payload: z.string()
+})
