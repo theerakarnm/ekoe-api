@@ -515,55 +515,55 @@ export class PaymentsDomain {
 
       const transactionRef = decodedData?.tranRef || decodedData?.transactionRef;
       const invoiceNo = decodedData?.invoiceNo;
-      const orderId = decodedData?.userDefined1;
+      const paymentId = decodedData?.userDefined1;
 
 
       if (!invoiceNo) {
         throw new ValidationError('Missing invoice/order number in return data');
       }
 
-      if (!orderId) {
-        throw new ValidationError('Missing order ID in return data');
+      if (!paymentId) {
+        throw new ValidationError('Missing payment ID in return data');
       }
 
       return db.transaction(async tx => {
         try {
           // Find the order by orderId (orderId is stored on the order table, not the payment)
-          const order = await ordersRepository.getOrderById(orderId, tx);
+          const payment = await paymentsRepository.getPaymentById(paymentId, tx);
 
-          if (!order) {
-            logger.warn({ orderId }, 'Order not found by orderId during 2C2P return processing');
-            throw new NotFoundError('Order');
+          if (!payment) {
+            logger.warn({ paymentId }, 'Payment not found by paymentId during 2C2P return processing');
+            throw new NotFoundError('Payment');
           }
-
-
-          // Get the payment associated with this order
-          const payments = await paymentsRepository.getPaymentsByOrderId(order.id, tx);
-          const payment = payments.length > 0 ? payments[payments.length - 1] : null; // Get the most recent payment
 
           if (payment) {
             // Only update if currently pending and we have a definitive result
             if (payment.status === 'pending') {
               if (status === 'completed') {
                 await Promise.all([
-                  ordersRepository.updatePaymentStatus(order.id, 'paid', tx),
+                  ordersRepository.updatePaymentStatus(payment.orderId, 'paid', tx),
                   this.completePayment(payment.id, tx)
                 ])
               } else if (status === 'failed') {
                 await Promise.all([
-                  ordersRepository.updatePaymentStatus(order.id, 'failed', tx),
+                  ordersRepository.updatePaymentStatus(payment.orderId, 'failed', tx),
                   this.failPayment(payment.id, decodedData?.respDesc || 'Payment failed (return)', tx)
                 ])
               }
             }
           } else {
-            logger.warn({ invoiceNo, orderId: order.id }, 'Payment not found for order during 2C2P return processing');
+            logger.warn({ invoiceNo, paymentId }, 'Payment not found for order during 2C2P return processing');
           }
+
+          console.log('set status completed');
+
 
           // Return the payment status response
           // We fetch fresh status to be sure
           if (payment) {
             const currentStatus = await this.getPaymentStatus(payment.id, tx);
+            console.log({ currentStatus });
+
             return {
               ...currentStatus,
               message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
@@ -571,15 +571,19 @@ export class PaymentsDomain {
             };
           }
 
+          console.log('set status failed');
+
           // If no payment found, return basic status info
           return {
-            paymentId: '',
+            paymentId: paymentId,
             status,
             transactionId: transactionRef,
             message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
             transactionRef
           };
         } catch (error) {
+          console.log({ error });
+
           // TODO: Save to retry table and using cronjob to retry action.
 
           tx.rollback();

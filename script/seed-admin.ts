@@ -1,6 +1,7 @@
 import { auth } from "../src/libs/auth";
 import { db } from "../src/core/database";
 import { adminRoles, adminUsers } from "../src/core/database/schema/admin.schema";
+import { users } from "../src/core/database/schema/auth-schema";
 import { eq } from "drizzle-orm";
 import { uuidv7 } from "uuidv7";
 
@@ -86,6 +87,12 @@ async function seedAdmin() {
       });
       console.log("✅ User assigned as 'Super Admin'.");
     }
+
+    // 4. Update users.role to 'admin' (required for better-auth session role detection)
+    await db.update(users)
+      .set({ role: 'admin' })
+      .where(eq(users.id, userId));
+    console.log("✅ User role set to 'admin'.");
 
     console.log("✨ Admin seeding completed successfully!");
     process.exit(0);
