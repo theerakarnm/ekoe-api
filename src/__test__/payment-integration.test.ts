@@ -28,7 +28,7 @@ let testOrderId: string;
 let testPaymentId: string;
 
 describe('Payment Integration Tests', () => {
-  
+
   // Setup: Create test order directly in database
   beforeAll(async () => {
     const [order] = await db
@@ -59,7 +59,7 @@ describe('Payment Integration Tests', () => {
   });
 
   describe('PromptPay Payment Flow', () => {
-    
+
     test('should create PromptPay payment and generate QR code', async () => {
       const response = await fetch(`${API_URL}/api/payments/promptpay`, {
         method: 'POST',
@@ -73,15 +73,15 @@ describe('Payment Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       expect(data.success).toBe(true);
       expect(data.data).toHaveProperty('paymentId');
       expect(data.data).toHaveProperty('qrCode');
       expect(data.data).toHaveProperty('expiresAt');
-      
+
       testPaymentId = data.data.paymentId;
-      
+
       // Verify QR code is a base64 string
       expect(data.data.qrCode).toMatch(/^data:image\/(png|jpeg);base64,/);
     });
@@ -120,8 +120,8 @@ describe('Payment Integration Tests', () => {
 
       expect(response.ok).toBe(false);
       expect(response.status).toBe(400);
-      
-      const data = await response.json();
+
+      const data = await response.json() as any;
       expect(data.success).toBe(false);
       expect(data.error.message).toContain('already paid');
 
@@ -162,14 +162,14 @@ describe('Payment Integration Tests', () => {
 
       expect(response.ok).toBe(false);
       expect(response.status).toBe(400);
-      
-      const data = await response.json();
+
+      const data = await response.json() as any;
       expect(data.error.message).toContain('does not match');
     });
   });
 
   describe('2C2P Payment Flow', () => {
-    
+
     let test2C2POrderId: string;
     let test2C2PPaymentId: string;
 
@@ -216,15 +216,15 @@ describe('Payment Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
-      expect(data.success).toBe(true);
-      expect(data.data).toHaveProperty('paymentId');
-      expect(data.data).toHaveProperty('paymentUrl');
-      
-      test2C2PPaymentId = data.data.paymentId;
-      
+
+      expect((data as any).success).toBe(true);
+      expect((data as any).data).toHaveProperty('paymentId');
+      expect((data as any).data).toHaveProperty('paymentUrl');
+
+      test2C2PPaymentId = (data as any).data.paymentId;
+
       // Verify payment URL is valid
-      expect(data.data.paymentUrl).toMatch(/^https?:\/\//);
+      expect((data as any).data.paymentUrl).toMatch(/^https?:\/\//);
     });
 
     test('should create payment record with 2C2P provider', async () => {
@@ -260,7 +260,7 @@ describe('Payment Integration Tests', () => {
   });
 
   describe('Payment Status Polling', () => {
-    
+
     test('should retrieve payment status', async () => {
       const response = await fetch(
         `${API_URL}/api/payments/${testPaymentId}/status`,
@@ -271,11 +271,11 @@ describe('Payment Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
-      expect(data.success).toBe(true);
-      expect(data.data.paymentId).toBe(testPaymentId);
-      expect(data.data.status).toBe('pending');
-      expect(data.data.amount).toBe(10000);
+
+      expect((data as any).success).toBe(true);
+      expect((data as any).data.paymentId).toBe(testPaymentId);
+      expect((data as any).data.status).toBe('pending');
+      expect((data as any).data.amount).toBe(10000);
     });
 
     test('should handle non-existent payment', async () => {
@@ -309,14 +309,14 @@ describe('Payment Integration Tests', () => {
 
       expect(response.ok).toBe(true);
       const data = await response.json();
-      
-      expect(data.data.status).toBe('completed');
-      expect(data.data.completedAt).toBeTruthy();
+
+      expect((data as any).data.status).toBe('completed');
+      expect((data as any).data.completedAt).toBeTruthy();
     });
   });
 
   describe('Payment Retry', () => {
-    
+
     let retryOrderId: string;
     let firstPaymentId: string;
     let secondPaymentId: string;
@@ -363,7 +363,7 @@ describe('Payment Integration Tests', () => {
       });
 
       const firstData = await firstResponse.json();
-      firstPaymentId = firstData.data.paymentId;
+      firstPaymentId = (firstData as any).data.paymentId;
 
       // Mark first payment as failed
       await db
@@ -388,7 +388,7 @@ describe('Payment Integration Tests', () => {
 
       expect(secondResponse.ok).toBe(true);
       const secondData = await secondResponse.json();
-      secondPaymentId = secondData.data.paymentId;
+      secondPaymentId = (secondData as any).data.paymentId;
 
       // Verify both payments exist
       expect(firstPaymentId).not.toBe(secondPaymentId);
@@ -401,7 +401,7 @@ describe('Payment Integration Tests', () => {
         .where(eq(payments.orderId, retryOrderId));
 
       expect(allPayments.length).toBeGreaterThanOrEqual(2);
-      
+
       const failedPayment = allPayments.find(p => p.id === firstPaymentId);
       const pendingPayment = allPayments.find(p => p.id === secondPaymentId);
 
@@ -411,7 +411,7 @@ describe('Payment Integration Tests', () => {
   });
 
   describe('Input Validation', () => {
-    
+
     test('should reject invalid UUID format for order ID', async () => {
       const response = await fetch(`${API_URL}/api/payments/promptpay`, {
         method: 'POST',

@@ -22,6 +22,13 @@
       "when": 1733011200000,
       "tag": "0002_add_product_search_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1765126471335,
+      "tag": "0003_free_guardsmen",
+      "breakpoints": true
     }
   ]
 }

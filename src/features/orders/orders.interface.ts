@@ -99,6 +99,7 @@ export interface Order {
   orderNumber: string;
   userId: string | null;
   email: string;
+  invoiceNo: string | null;
   status: string;
   paymentStatus: string;
   fulfillmentStatus: string | null;

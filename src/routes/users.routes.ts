@@ -18,23 +18,12 @@ usersRoutes.get('/:id', authMiddleware, async (c) => {
   return ResponseBuilder.success(c, user);
 });
 
-usersRoutes.post('/', validateJson(createUserSchema), async (c) => {
-  const data = await c.req.json();
-  const user = await usersDomain.createUser(data);
-  return ResponseBuilder.created(c, user);
-});
 
 usersRoutes.patch('/:id', authMiddleware, validateJson(updateUserSchema), async (c) => {
   const id = c.req.param('id');
   const data = await c.req.json();
   const user = await usersDomain.updateUser(id, data);
   return ResponseBuilder.success(c, user);
-});
-
-usersRoutes.delete('/:id', authMiddleware, async (c) => {
-  const id = c.req.param('id');
-  await usersDomain.deleteUser(id);
-  return ResponseBuilder.noContent(c);
 });
 
 export default usersRoutes;

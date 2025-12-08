@@ -56,7 +56,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       // Verify response structure
       expect(data).toHaveProperty('user');
@@ -132,7 +132,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       expect(data).toHaveProperty('user');
       expect(data.user.email).toBe(TEST_USER_EMAIL.toLowerCase());
@@ -196,7 +196,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       expect(data).toHaveProperty('user');
       expect(data.user.id).toBe(testUserId);
@@ -285,7 +285,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       expect(data.success).toBe(true);
       expect(data.data).toHaveProperty('userId');
@@ -310,7 +310,7 @@ describe('Customer Authentication Integration Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
+      const data = await response.json() as any;
 
       expect(data.success).toBe(true);
       expect(Array.isArray(data.data)).toBe(true);

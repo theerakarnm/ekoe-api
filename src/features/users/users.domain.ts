@@ -16,28 +16,24 @@ export class UsersDomain {
     return user;
   }
 
-  async createUser(data: CreateUserDto) {
-    const existingUser = await usersRepository.findByEmail(data.email);
-    if (existingUser) {
-      throw new Error('User already exists');
-    }
+  // async createUser(data: CreateUserDto) {
+  //   const existingUser = await usersRepository.findByEmail(data.email);
+  //   if (existingUser) {
+  //     throw new Error('User already exists');
+  //   }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-    return usersRepository.create({
-      ...data,
-      password: hashedPassword,
-    });
-  }
+  //   const hashedPassword = await bcrypt.hash(data.password, 10);
+  //   return usersRepository.create({
+  //     ...data,
+  //     password: hashedPassword,
+  //   });
+  // }
 
   async updateUser(id: string, data: UpdateUserDto) {
     await this.getUserById(id); // Ensure user exists
     return usersRepository.update(id, data);
   }
 
-  async deleteUser(id: string) {
-    await this.getUserById(id); // Ensure user exists
-    return usersRepository.delete(id);
-  }
 
   /**
    * Get customers with order statistics
@@ -70,7 +66,7 @@ export class UsersDomain {
    */
   async getCustomerWithOrderHistory(id: string) {
     const customer = await usersRepository.getCustomerWithOrderHistory(id);
-    
+
     if (!customer) {
       throw new NotFoundError('Customer not found');
     }
@@ -91,7 +87,7 @@ export class UsersDomain {
         completedOrders,
         pendingOrders,
         totalSpent: customer.totalSpent,
-        averageOrderValue: customer.orderCount > 0 
+        averageOrderValue: customer.orderCount > 0
           ? Math.round(customer.totalSpent / customer.orderCount)
           : 0,
       },

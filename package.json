@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --target=bun --external mock-aws-s3 --external aws-sdk --external nock",
+    "build": "bun build src/index.ts --outdir ./dist --target=bun --external mock-aws-s3 --external aws-sdk --external nock",
     "start": "bun src/index.ts",
     "test": "bun test",
     "test:auth": "bun test src/__test__/auth-integration.test.ts",
@@ -22,7 +22,7 @@
     "@types/jsonwebtoken": "^9.0.10",
     "bcrypt": "^6.0.0",
     "better-auth": "^1.3.34",
-    "dayjs": "^1.11.10",
+    "dayjs": "^1.11.19",
     "drizzle-orm": "^0.44.7",
     "drizzle-zod": "^0.8.3",
     "hono": "^4.10.6",

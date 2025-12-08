@@ -28,7 +28,7 @@ cart.post('/validate', cartValidationRateLimit, zValidator('json', validateCartS
 
     const validatedCart = await cartDomain.validateCart(items);
 
-    return c.json(ResponseBuilder.success(c, validatedCart));
+    return ResponseBuilder.success(c, validatedCart);
   } catch (error) {
     logger.error({ error }, 'Failed to validate cart');
     throw error;
@@ -45,7 +45,7 @@ cart.post('/calculate', zValidator('json', calculateCartSchema), async (c) => {
 
     const pricing = await cartDomain.calculateCartPricing(items, discountCode, shippingMethod);
 
-    return c.json(ResponseBuilder.success(c, pricing));
+    return ResponseBuilder.success(c, pricing);
   } catch (error) {
     logger.error({ error }, 'Failed to calculate cart pricing');
     throw error;
@@ -65,7 +65,7 @@ cart.get('/gifts', async (c) => {
     const items = productIds.map(id => ({ productId: id, quantity: 1 }));
     const gifts = await cartDomain.getEligibleFreeGifts(items, subtotal);
 
-    return c.json(ResponseBuilder.success(c, gifts));
+    return ResponseBuilder.success(c, gifts);
   } catch (error) {
     logger.error({ error }, 'Failed to get eligible gifts');
     throw error;
@@ -85,7 +85,8 @@ cart.post('/discount/validate', discountValidationRateLimit, zValidator('json', 
 
     const validation = await cartDomain.validateDiscountCode(code, subtotal, items, userId);
 
-    return c.json(ResponseBuilder.success(c, validation));
+
+    return ResponseBuilder.success(c, validation);
   } catch (error) {
     logger.error({ error }, 'Failed to validate discount code');
     throw error;

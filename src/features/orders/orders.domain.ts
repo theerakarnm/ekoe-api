@@ -220,7 +220,7 @@ export class OrdersDomain {
       if (dbDiscountCode) {
         discountCodeId = dbDiscountCode.id;
         hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
-        
+
         // Calculate discount amount (will be adjusted for free shipping later)
         if (discountValidation.discountAmount) {
           discountAmount = discountValidation.discountAmount;
@@ -230,7 +230,7 @@ export class OrdersDomain {
 
     // Calculate shipping cost based on selected method
     const method = shippingMethod || 'standard';
-    
+
     // Validate shipping method
     if (!isValidShippingMethod(method)) {
       throw new ValidationError(`Invalid shipping method: ${method}`);
@@ -445,7 +445,7 @@ export class OrdersDomain {
   ): Promise<OrderStatusUpdate> {
     // Get current order
     const order = await ordersRepository.getOrderById(id);
-    
+
     const currentStatus = order.status as OrderStatus;
     const newStatus = data.status as OrderStatus;
 

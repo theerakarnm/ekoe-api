@@ -268,12 +268,12 @@ export class OrdersRepository {
       sortBy === 'orderNumber'
         ? orders.orderNumber
         : sortBy === 'email'
-        ? orders.email
-        : sortBy === 'status'
-        ? orders.status
-        : sortBy === 'totalAmount'
-        ? orders.totalAmount
-        : orders.createdAt;
+          ? orders.email
+          : sortBy === 'status'
+            ? orders.status
+            : sortBy === 'totalAmount'
+              ? orders.totalAmount
+              : orders.createdAt;
 
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
@@ -432,8 +432,8 @@ export class OrdersRepository {
       changedBy: entry.changedBy,
       createdAt: entry.createdAt,
       // If changedBy is 'system', display 'System', otherwise use the user's name or email
-      changedByName: entry.changedBy === 'system' 
-        ? 'System' 
+      changedByName: entry.changedBy === 'system'
+        ? 'System'
         : entry.changedByName || entry.changedByEmail || 'Administrator',
     }));
   }
@@ -499,6 +499,32 @@ export class OrdersRepository {
     }
 
     return order;
+  }
+
+  /**
+   * Update order invoice number (from payment provider)
+   */
+  async updateOrderInvoiceNo(orderId: string, invoiceNo: string): Promise<void> {
+    await db
+      .update(orders)
+      .set({
+        invoiceNo,
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId));
+  }
+
+  /**
+   * Get order by invoice number (from 2C2P payment provider)
+   */
+  async getOrderByInvoiceNo(invoiceNo: string): Promise<Order | null> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.invoiceNo, invoiceNo))
+      .limit(1);
+
+    return order ? (order as unknown as Order) : null;
   }
 }
 

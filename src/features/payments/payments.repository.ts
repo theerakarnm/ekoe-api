@@ -117,8 +117,7 @@ export class PaymentsRepository {
       .update(payments)
       .set({
         status: 'completed',
-        completedAt,
-        updatedAt: new Date(),
+        completedAt
       })
       .where(eq(payments.id, id))
       .returning();

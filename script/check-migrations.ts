@@ -19,13 +19,16 @@ async function checkMigrations() {
     }
 
     // Get all applied migrations
-    const migrations = await db.execute(sql`
+    const migrations = await db.execute<{
+      hash: string;
+      created_at: string;
+    }>(sql`
       SELECT * FROM __drizzle_migrations
       ORDER BY created_at;
     `);
 
     console.log(`✅ Found ${migrations.rows.length} applied migrations:\n`);
-    
+
     for (const row of migrations.rows) {
       console.log(`  📝 ${row.hash} - ${new Date(row.created_at).toISOString()}`);
     }

@@ -5,8 +5,8 @@
     "target": "esnext",
     "moduleResolution": "bundler",
     "moduleDetection": "force",
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
+
+    "noEmit": false,
     "composite": true,
     "strict": true,
     "downlevelIteration": true,
@@ -17,6 +17,14 @@
     "allowJs": true,
     "types": [
       "bun-types"
-    ]
-  }
+    ],
+
+    "esModuleInterop": true,
+    "jsxImportSource": "hono/jsx",
+    "resolveJsonModule": true,
+    "outDir": "./dist",
+    "rootDir": "./src"
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
 }

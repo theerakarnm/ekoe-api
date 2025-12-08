@@ -26,7 +26,7 @@ let testUserId: string;
 let resetToken: string;
 
 describe('Password Reset Flow Tests', () => {
-  
+
   // Setup: Create test user
   beforeAll(async () => {
     const response = await fetch(`${API_URL}/api/auth/sign-up/email`, {
@@ -41,7 +41,7 @@ describe('Password Reset Flow Tests', () => {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     testUserId = data.user.id;
   });
 
@@ -56,7 +56,7 @@ describe('Password Reset Flow Tests', () => {
   });
 
   describe('Test 18.4: Request Password Reset', () => {
-    
+
     test('should accept password reset request for existing email', async () => {
       const response = await fetch(`${API_URL}/api/auth/forget-password`, {
         method: 'POST',
@@ -92,7 +92,7 @@ describe('Password Reset Flow Tests', () => {
       expect(verification).toBeTruthy();
       expect(verification.identifier).toBe(TEST_USER_EMAIL.toLowerCase());
       expect(verification.expiresAt.getTime()).toBeGreaterThan(Date.now());
-      
+
       // Store token for later tests
       resetToken = verification.value;
     });
@@ -116,7 +116,7 @@ describe('Password Reset Flow Tests', () => {
   });
 
   describe('Test 18.4: Reset Password with Token', () => {
-    
+
     test('should reject password reset with invalid token', async () => {
       const response = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
@@ -169,7 +169,7 @@ describe('Password Reset Flow Tests', () => {
   });
 
   describe('Test 18.4: Login with New Password', () => {
-    
+
     test('should reject login with old password', async () => {
       const response = await fetch(`${API_URL}/api/auth/sign-in/email`, {
         method: 'POST',
@@ -199,8 +199,8 @@ describe('Password Reset Flow Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       expect(data).toHaveProperty('user');
       expect(data.user.email).toBe(TEST_USER_EMAIL.toLowerCase());
       expect(data.user.id).toBe(testUserId);
@@ -226,7 +226,7 @@ describe('Password Reset Flow Tests', () => {
       const tokenMatch = cookies?.match(/better-auth\.session_token=([^;]+)/);
       if (tokenMatch) {
         const sessionToken = tokenMatch[1];
-        
+
         const sessionResponse = await fetch(`${API_URL}/api/auth/get-session`, {
           method: 'GET',
           headers: {
@@ -235,14 +235,14 @@ describe('Password Reset Flow Tests', () => {
         });
 
         expect(sessionResponse.ok).toBe(true);
-        const sessionData = await sessionResponse.json();
+        const sessionData = await sessionResponse.json() as any;
         expect(sessionData.user.id).toBe(testUserId);
       }
     });
   });
 
   describe('Test 18.4: Token Expiration', () => {
-    
+
     test('should reject expired reset token', async () => {
       // Request new reset
       await fetch(`${API_URL}/api/auth/forget-password`, {
@@ -297,7 +297,7 @@ describe('Password Reset Flow Tests', () => {
   });
 
   describe('Test 18.4: Multiple Reset Requests', () => {
-    
+
     test('should allow multiple password reset requests', async () => {
       // First request
       const response1 = await fetch(`${API_URL}/api/auth/forget-password`, {
@@ -349,7 +349,7 @@ describe('Password Reset Flow Tests', () => {
 
       // Most recent token should work
       const latestToken = tokens[tokens.length - 1].value;
-      
+
       const response = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: {

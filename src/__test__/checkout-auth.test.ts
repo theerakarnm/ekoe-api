@@ -28,7 +28,7 @@ let testSessionToken: string;
 let testAddressId: string;
 
 describe('Checkout Authentication Tests', () => {
-  
+
   // Setup: Create test user
   beforeAll(async () => {
     // Register user
@@ -44,7 +44,7 @@ describe('Checkout Authentication Tests', () => {
       }),
     });
 
-    const data = await response.json();
+    const data = await response.json() as any;
     testUserId = data.user.id;
 
     // Login to get session token
@@ -86,7 +86,7 @@ describe('Checkout Authentication Tests', () => {
       }),
     });
 
-    const addressData = await addressResponse.json();
+    const addressData = await addressResponse.json() as any;
     testAddressId = addressData.data.id;
   });
 
@@ -101,7 +101,7 @@ describe('Checkout Authentication Tests', () => {
   });
 
   describe('Test 18.3: Checkout Authentication Requirements', () => {
-    
+
     test('should reject unauthenticated access to customer profile', async () => {
       const response = await fetch(`${API_URL}/api/customers/me`, {
         method: 'GET',
@@ -109,8 +109,8 @@ describe('Checkout Authentication Tests', () => {
 
       expect(response.ok).toBe(false);
       expect(response.status).toBe(401);
-      
-      const data = await response.json();
+
+      const data = await response.json() as any;
       expect(data.success).toBe(false);
       expect(data.error).toBeTruthy();
     });
@@ -133,8 +133,8 @@ describe('Checkout Authentication Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       expect(data.success).toBe(true);
       expect(data.data).toHaveProperty('userId');
       expect(data.data.userId).toBe(testUserId);
@@ -149,8 +149,8 @@ describe('Checkout Authentication Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       expect(data.success).toBe(true);
       expect(Array.isArray(data.data)).toBe(true);
       expect(data.data.length).toBeGreaterThan(0);
@@ -158,7 +158,7 @@ describe('Checkout Authentication Tests', () => {
   });
 
   describe('Test 18.3: Profile Data for Pre-fill', () => {
-    
+
     test('should retrieve customer profile with name and contact info', async () => {
       const response = await fetch(`${API_URL}/api/customers/me`, {
         method: 'GET',
@@ -168,8 +168,8 @@ describe('Checkout Authentication Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       // Verify profile data is available for checkout pre-fill
       expect(data.data).toHaveProperty('userId');
       expect(data.data).toHaveProperty('firstName');
@@ -186,12 +186,12 @@ describe('Checkout Authentication Tests', () => {
       });
 
       expect(response.ok).toBe(true);
-      const data = await response.json();
-      
+      const data = await response.json() as any;
+
       // Verify addresses are available
       expect(Array.isArray(data.data)).toBe(true);
       expect(data.data.length).toBeGreaterThan(0);
-      
+
       // Verify address structure
       const address = data.data[0];
       expect(address).toHaveProperty('firstName');
@@ -212,16 +212,16 @@ describe('Checkout Authentication Tests', () => {
         },
       });
 
-      const data = await response.json();
+      const data = await response.json() as any;
       const defaultAddress = data.data.find((addr: any) => addr.isDefault);
-      
+
       expect(defaultAddress).toBeTruthy();
       expect(defaultAddress.isDefault).toBe(true);
     });
   });
 
   describe('Test 18.3: Session Validation', () => {
-    
+
     test('should validate session before allowing checkout', async () => {
       // Valid session
       const validResponse = await fetch(`${API_URL}/api/auth/get-session`, {
@@ -232,7 +232,7 @@ describe('Checkout Authentication Tests', () => {
       });
 
       expect(validResponse.ok).toBe(true);
-      const validData = await validResponse.json();
+      const validData = await validResponse.json() as any;
       expect(validData.user.id).toBe(testUserId);
     });
 
@@ -272,7 +272,7 @@ describe('Checkout Authentication Tests', () => {
   });
 
   describe('Test 18.3: Order Creation (Checkout Completion)', () => {
-    
+
     test('should allow authenticated user to create order', async () => {
       // Note: This assumes orders endpoint exists and requires authentication
       // Adjust based on actual implementation
@@ -303,7 +303,7 @@ describe('Checkout Authentication Tests', () => {
       if (response.status === 401) {
         throw new Error('Order creation failed due to authentication - this should not happen');
       }
-      
+
       // Any other status (400, 404, 200, etc.) means auth passed
       expect(response.status).not.toBe(401);
     });

@@ -26,7 +26,7 @@ ordersRoutes.get('/shipping-methods', async (c) => {
 
 // Customer endpoints
 // Create order (checkout) - requires authentication
-ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
+ordersRoutes.post('/orders', requireCustomerAuth, validateJson(createOrderSchema), async (c) => {
   const data = await c.req.json();
   const user = c.get('user');
 
@@ -37,7 +37,7 @@ ordersRoutes.post('/', requireCustomerAuth, validateJson(createOrderSchema), asy
 });
 
 // Get order by ID (for order confirmation) - requires authentication
-ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
+ordersRoutes.get('/orders/:id', requireCustomerAuth, async (c) => {
   const id = c.req.param('id');
   const user = c.get('user');
 
@@ -53,7 +53,7 @@ ordersRoutes.get('/:id', requireCustomerAuth, async (c) => {
 });
 
 // Get order status history - customer endpoint
-ordersRoutes.get('/:id/status-history', requireCustomerAuth, async (c) => {
+ordersRoutes.get('/orders/:id/status-history', requireCustomerAuth, async (c) => {
   const id = c.req.param('id');
   const user = c.get('user');
 

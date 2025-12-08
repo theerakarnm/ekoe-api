@@ -11,6 +11,7 @@ export const orders = pgTable("orders", {
   // Customer info
   userId: varchar("user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
   email: varchar("email", { length: 255 }).notNull(),
+  invoiceNo: varchar("invoice_no", { length: 50 }),
 
   // Order status
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, processing, shipped, delivered, cancelled, refunded

@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import usersRoutes from './users.routes';
 import adminRoutes from './admin.routes';
 import productsRoutes from './products.routes';
 import ordersRoutes from './orders.routes';
@@ -95,14 +94,13 @@ router.on(['POST', 'GET'], '/auth/*', async (c) => {
 });
 
 // Feature routes
-router.route('/users', usersRoutes);
 router.route('/admin', adminRoutes);
 router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
 router.route('/cart', cartRoutes);
 
 // Orders routes (includes both /orders and /admin/orders paths)
-router.route('/orders', ordersRoutes);
+router.route('/', ordersRoutes);
 
 // Analytics routes (includes /admin/analytics and /admin/dashboard paths)
 router.route('/', analyticsRoutes);

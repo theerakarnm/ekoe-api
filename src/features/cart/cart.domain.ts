@@ -156,11 +156,11 @@ export class CartDomain {
       if (discountValidation.isValid) {
         // Get the discount code details for product-specific calculation
         const dbDiscountCode = await cartRepository.getDiscountCodeByCode(discountCode);
-        
+
         if (dbDiscountCode) {
           hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
           const applicableProductIds = dbDiscountCode.applicableToProducts as string[] | null;
-          
+
           // Calculate discount with validated items for accurate product-specific discounts
           discountAmount = this.calculateDiscountAmountWithValidatedItems(
             dbDiscountCode.discountType,
@@ -182,8 +182,8 @@ export class CartDomain {
 
     // Calculate shipping cost (after checking for free shipping discount)
     const shippingCost = this.calculateShippingCostWithDiscount(
-      shippingMethod || 'standard', 
-      subtotal, 
+      shippingMethod || 'standard',
+      subtotal,
       hasFreeShippingDiscount
     );
 
@@ -236,6 +236,9 @@ export class CartDomain {
     // Get discount code from database
     const discountCode = await cartRepository.getDiscountCodeByCode(code);
 
+    console.log(discountCode);
+
+
     if (!discountCode) {
       return {
         isValid: false,
@@ -246,6 +249,8 @@ export class CartDomain {
 
     // Check if code has started
     if (discountCode.startsAt && new Date(discountCode.startsAt) > new Date()) {
+      console.log('not started');
+
       return {
         isValid: false,
         error: 'This discount code is not yet active',
@@ -255,6 +260,8 @@ export class CartDomain {
 
     // Check if code has expired
     if (discountCode.expiresAt && new Date(discountCode.expiresAt) < new Date()) {
+      console.log('expired');
+
       return {
         isValid: false,
         error: 'This discount code has expired',
@@ -264,6 +271,8 @@ export class CartDomain {
 
     // Check minimum purchase amount
     if (discountCode.minPurchaseAmount && subtotal < discountCode.minPurchaseAmount) {
+      console.log('min purchase not met');
+
       return {
         isValid: false,
         error: `Minimum purchase of ${discountCode.minPurchaseAmount / 100} THB required`,
@@ -275,6 +284,7 @@ export class CartDomain {
     if (discountCode.usageLimit) {
       const totalUsage = await cartRepository.getTotalDiscountCodeUsage(discountCode.id);
       if (totalUsage >= discountCode.usageLimit) {
+        console.log('usage limit');
         return {
           isValid: false,
           error: 'This discount code has reached its usage limit',
@@ -287,6 +297,8 @@ export class CartDomain {
     if (discountCode.usageLimitPerCustomer && userId) {
       const customerUsage = await cartRepository.getDiscountCodeUsageCount(discountCode.id, userId);
       if (customerUsage >= discountCode.usageLimitPerCustomer) {
+        console.log('usage limit per customer');
+
         return {
           isValid: false,
           error: 'You have already used this discount code the maximum number of times',
@@ -305,6 +317,9 @@ export class CartDomain {
       applicableProductIds,
       items
     );
+
+    console.log(discountAmount);
+
 
     return {
       isValid: true,
@@ -416,8 +431,8 @@ export class CartDomain {
    * Supports free shipping over threshold and free shipping discounts
    */
   private calculateShippingCostWithDiscount(
-    method: string, 
-    subtotal: number, 
+    method: string,
+    subtotal: number,
     hasFreeShippingDiscount: boolean = false
   ): number {
     // Free shipping if discount code provides it

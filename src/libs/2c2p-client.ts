@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import crypto from 'crypto';
 import { logger } from '../core/logger';
 import { ValidationError } from '../core/errors';
+import dayjs from 'dayjs';
 
 export interface TwoC2PConfig {
   merchantId: string;
@@ -12,7 +13,7 @@ export interface TwoC2PConfig {
 
 export interface CreatePaymentSessionParams {
   orderId: string;
-  amount: number;
+  amount: number | string;
   currency: string;
   returnUrl: string;
   description?: string;
@@ -21,6 +22,9 @@ export interface CreatePaymentSessionParams {
 export interface PaymentSessionResponse {
   paymentUrl: string;
   sessionId: string;
+  meta: {
+    invoiceNo: string;
+  };
 }
 
 interface PaymentTokenPayload {
@@ -30,7 +34,7 @@ interface PaymentTokenPayload {
   amount: number | string;
   currencyCode: string;
   paymentChannel: string[];
-  backendReturnUrl: string;
+  backendReturnUrl?: string;
   frontendReturnUrl?: string;
   userDefined1?: string;
   userDefined2?: string;
@@ -71,6 +75,7 @@ export class TwoC2PClient {
    * Uses HS256 algorithm as required by PGW v4.3
    */
   private generateJwtPayload(payload: object): string {
+    // Use secret key directly - 2C2P secret keys are typically plain strings
     return jwt.sign(payload, this.secretKey, { algorithm: 'HS256' });
   }
 
@@ -78,8 +83,12 @@ export class TwoC2PClient {
    * Decode JWT response from 2C2P API
    */
   private decodeJwtResponse(token: string): PaymentTokenResponse {
+    // Log the raw token for debugging
+    logger.debug({ token: token?.substring(0, 100) + '...' }, 'Attempting to decode 2C2P JWT response');
+
     const decoded = jwt.decode(token);
     if (!decoded || typeof decoded === 'string') {
+      logger.error({ rawToken: token, decodedValue: decoded }, 'Failed to decode JWT response from 2C2P');
       throw new Error('Invalid JWT response from 2C2P');
     }
     return decoded as PaymentTokenResponse;
@@ -116,23 +125,29 @@ export class TwoC2PClient {
     try {
       // Convert amount to number format (2C2P expects amount in decimal)
       // If amount is in cents (smallest unit), convert to decimal
-      const amountDecimal = params.amount / 100;
+      const amountDecimal = Number(params.amount) / 100;
 
       // Generate unique nonce for this request
-      const nonceStr = crypto.randomBytes(32).toString('hex');
+      const nonceStr = crypto.randomBytes(8).toString('hex');
+      const randStr = crypto.randomBytes(4).toString('hex');
+
+      const invNo = `${dayjs().format('YYYYMM')}-${randStr}`
 
       // Prepare JWT payload for Payment Token API
       const tokenPayload: PaymentTokenPayload = {
         merchantID: this.merchantId,
-        invoiceNo: params.orderId,
-        description: params.description || `Order ${params.orderId}`,
-        amount: amountDecimal.toFixed(2), // Format as string with 2 decimal places (e.g., "100.00")
+        invoiceNo: invNo,
+        description: params.description || `Order ${invNo}`,
+        amount: amountDecimal, // Format as string with 2 decimal places (e.g., "100.00")
         currencyCode: params.currency,
         paymentChannel: ['CC'],
-        nonceStr: nonceStr,
+        // nonceStr: nonceStr,
         frontendReturnUrl: params.returnUrl,
         backendReturnUrl: this.backendReturnUrl,
       };
+
+      console.log(tokenPayload);
+
 
       logger.info(
         {
@@ -146,11 +161,18 @@ export class TwoC2PClient {
       // Generate JWT-signed payload
       const jwtToken = this.generateJwtPayload(tokenPayload);
 
-      console.log(jwtToken);
+      // Construct the full API URL for Payment Token endpoint
+      // apiUrl should be base URL like https://sandbox-pgw.2c2p.com
+      // We need to append /payment/4.3/paymentToken
+      let apiEndpoint = this.apiUrl;
+      if (!apiEndpoint.includes('/payment/')) {
+        apiEndpoint = `${this.apiUrl}/payment/4.3/paymentToken`;
+      }
 
+      logger.info({ apiEndpoint, merchantId: this.merchantId }, 'Making 2C2P Payment Token API request');
 
       // Make API request to 2C2P Payment Token endpoint
-      const response = await fetch(`${this.apiUrl}/payment/4.3/paymentToken`, {
+      const response = await fetch(apiEndpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -158,8 +180,6 @@ export class TwoC2PClient {
         body: JSON.stringify({ payload: jwtToken }),
         signal: AbortSignal.timeout(30000), // 30 second timeout
       });
-
-      console.log(response);
 
       if (!response.ok) {
         const errorText = await response.text();
@@ -171,11 +191,14 @@ export class TwoC2PClient {
       }
 
       const responseData = await response.json() as { payload: string };
-      console.log(responseData);
+
+      // Log raw response for debugging
+      logger.info({ rawPayload: responseData.payload?.substring(0, 200) }, '2C2P raw response payload');
 
       // Decode JWT response
       const decodedResponse = this.decodeJwtResponse(responseData.payload);
 
+      console.log(decodedResponse);
       // Check response code (0000 = success)
       if (decodedResponse.respCode !== '0000') {
         logger.error(
@@ -202,6 +225,9 @@ export class TwoC2PClient {
       return {
         paymentUrl: decodedResponse.webPaymentUrl,
         sessionId: decodedResponse.paymentToken,
+        meta: {
+          invoiceNo: invNo,
+        }
       };
     } catch (error) {
       // Handle timeout errors

@@ -6,7 +6,7 @@ import { CreateUserDto, UpdateUserDto, GetCustomersParams } from './users.interf
 
 export class UsersRepository {
   async findAll() {
-    return db.select().from(users).where(isNull(users.deletedAt));
+    return db.select().from(users);
   }
 
   async findById(id: string) {
@@ -19,25 +19,11 @@ export class UsersRepository {
     return result[0] || null;
   }
 
-  async create(data: CreateUserDto) {
-    const result = await db.insert(users).values(data).returning();
-    return result[0];
-  }
 
   async update(id: string, data: UpdateUserDto) {
     const result = await db
       .update(users)
       .set({ ...data, updatedAt: new Date() })
-      .where(eq(users.id, id))
-      .returning();
-    return result[0];
-  }
-
-  async delete(id: string) {
-    // Soft delete
-    const result = await db
-      .update(users)
-      .set({ deletedAt: new Date() })
       .where(eq(users.id, id))
       .returning();
     return result[0];
@@ -53,7 +39,7 @@ export class UsersRepository {
 
     // Build where conditions
     const whereConditions = [];
-    
+
     if (search) {
       whereConditions.push(
         or(
