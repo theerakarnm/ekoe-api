@@ -7,6 +7,7 @@ import type {
   Payment,
   PaymentStatus,
 } from './payments.interface';
+import { PgTx } from '../../core/database/types';
 
 export class PaymentsRepository {
   /**
@@ -31,8 +32,8 @@ export class PaymentsRepository {
   /**
    * Get payment by ID
    */
-  async getPaymentById(id: string): Promise<Payment | null> {
-    const [payment] = await db
+  async getPaymentById(id: string, tx?: PgTx): Promise<Payment | null> {
+    const [payment] = await (tx || db)
       .select()
       .from(payments)
       .where(eq(payments.id, id))
@@ -44,8 +45,8 @@ export class PaymentsRepository {
   /**
    * Get all payments for an order
    */
-  async getPaymentsByOrderId(orderId: string): Promise<Payment[]> {
-    const result = await db
+  async getPaymentsByOrderId(orderId: string, tx?: PgTx): Promise<Payment[]> {
+    const result = await (tx || db)
       .select()
       .from(payments)
       .where(eq(payments.orderId, orderId));

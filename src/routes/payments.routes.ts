@@ -68,12 +68,24 @@ paymentsRoutes.post(
   paymentCreationRateLimit,
   validateJson(create2C2PPaymentSchema),
   async (c) => {
+    const user = c.get('user')
+
+    if (!user) {
+      return ResponseBuilder.error(
+        c,
+        'User not found',
+        401,
+        'UNAUTHORIZED'
+      );
+    }
+
     const { orderId, amount, returnUrl } = await c.req.json();
 
     const result = await paymentsDomain.initiate2C2PPayment(
       orderId,
       amount,
       returnUrl,
+      user.id
     );
 
     logger.info(
@@ -177,101 +189,6 @@ paymentsRoutes.post(
     return ResponseBuilder.success(c, result);
   }
 );
-
-
-// ============================================================================
-// Webhook Routes (No authentication - signature verified in handler)
-// ============================================================================
-
-/**
- * POST /api/webhooks/promptpay
- * Handle PromptPay webhook notifications
- */
-paymentsRoutes.post('/webhooks/promptpay', webhookRateLimit, async (c) => {
-  try {
-    const payload = await c.req.json();
-    const signature = c.req.header('x-webhook-signature') || '';
-
-    logger.info(
-      {
-        transactionId: payload.transactionId,
-        status: payload.status,
-        referenceId: payload.referenceId
-      },
-      'PromptPay webhook received'
-    );
-
-    // Process webhook with signature verification
-    await paymentsDomain.handlePromptPayWebhook(
-      payload,
-      signature,
-      paymentConfig.promptpay.webhookSecret
-    );
-
-    logger.info(
-      { transactionId: payload.transactionId },
-      'PromptPay webhook processed successfully'
-    );
-
-    // Always return 200 OK to acknowledge receipt
-    return ResponseBuilder.success(c, { received: true });
-  } catch (error) {
-    // Log error but still return 200 to prevent retries
-    logger.error(
-      { error, body: await c.req.text() },
-      'Error processing PromptPay webhook'
-    );
-
-    // Return 200 OK even on error to acknowledge receipt
-    return ResponseBuilder.success(c, { received: true, error: 'Processing failed' });
-  }
-});
-
-/**
- * POST /api/webhooks/2c2p
- * Handle 2C2P webhook notifications
- */
-paymentsRoutes.post('/webhooks/2c2p', webhookRateLimit, async (c) => {
-  try {
-    const payload = await c.req.json();
-
-    logger.info(
-      {
-        orderId: payload.order_id,
-        paymentStatus: payload.payment_status,
-        transactionRef: payload.transaction_ref
-      },
-      '2C2P webhook received'
-    );
-
-    // Process webhook (signature verification done in domain)
-    await paymentsDomain.handle2C2PWebhook(payload);
-
-    logger.info(
-      {
-        orderId: payload.order_id,
-        transactionRef: payload.transaction_ref
-      },
-      '2C2P webhook processed successfully'
-    );
-
-    // Always return 200 OK to acknowledge receipt
-    return ResponseBuilder.success(c, { received: true });
-  } catch (error) {
-    // Log error but still return 200 to prevent retries
-    logger.error(
-      { error, body: await c.req.text() },
-      'Error processing 2C2P webhook'
-    );
-
-    // Return 200 OK even on error to acknowledge receipt
-    return ResponseBuilder.success(c, { received: true, error: 'Processing failed' });
-  }
-});
-
-// ============================================================================
-// Admin Payment Routes
-// ============================================================================
 
 /**
  * GET /api/admin/payments

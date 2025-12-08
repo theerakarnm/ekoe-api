@@ -18,6 +18,7 @@ import type {
   TwoC2PWebhookPayload,
 } from './payments.interface';
 import jwt from 'jsonwebtoken';
+import { PgTx } from '../../core/database/types';
 
 // Lazy load orders domain to avoid circular dependency
 function getOrdersDomain() {
@@ -106,7 +107,8 @@ export class PaymentsDomain {
   async initiate2C2PPayment(
     orderId: string,
     amount: number,
-    returnUrl: string
+    returnUrl: string,
+    userId: string
   ): Promise<{ paymentId: string; paymentUrl: string }> {
     // Validate input
     this.validatePaymentData(orderId, amount);
@@ -153,6 +155,7 @@ export class PaymentsDomain {
       amount,
       currency: 'THB',
       returnUrl,
+      userId
     });
 
     await Promise.all([
@@ -228,9 +231,9 @@ export class PaymentsDomain {
    * Complete payment workflow
    * Updates payment status, order status, and sends confirmation email
    */
-  async completePayment(paymentId: string): Promise<void> {
+  async completePayment(paymentId: string, tnx?: PgTx): Promise<void> {
     // Execute transaction first
-    await db.transaction(async (tx) => {
+    await (tnx || db).transaction(async (tx) => {
       // Get payment details
       const payment = await paymentsRepository.getPaymentById(paymentId);
       if (!payment) {
@@ -314,9 +317,9 @@ export class PaymentsDomain {
    * Fail payment workflow
    * Updates payment status and order status
    */
-  async failPayment(paymentId: string, reason: string): Promise<void> {
+  async failPayment(paymentId: string, reason: string, tnx?: PgTx): Promise<void> {
     // Execute transaction first
-    await db.transaction(async (tx) => {
+    await (tnx || db).transaction(async (tx) => {
       // Get payment details
       const payment = await paymentsRepository.getPaymentById(paymentId);
       if (!payment) {
@@ -395,8 +398,8 @@ export class PaymentsDomain {
   /**
    * Get payment status
    */
-  async getPaymentStatus(paymentId: string): Promise<PaymentStatusResponse> {
-    const payment = await paymentsRepository.getPaymentById(paymentId);
+  async getPaymentStatus(paymentId: string, tnx?: PgTx): Promise<PaymentStatusResponse> {
+    const payment = await paymentsRepository.getPaymentById(paymentId, tnx);
     if (!payment) {
       throw new NotFoundError('Payment');
     }
@@ -446,180 +449,6 @@ export class PaymentsDomain {
       expiresAt,
       now,
     };
-  }
-
-  /**
-   * Handle PromptPay webhook
-   */
-  async handlePromptPayWebhook(
-    payload: PromptPayWebhookPayload,
-    signature: string,
-    webhookSecret: string
-  ): Promise<void> {
-    // Verify webhook signature
-    const payloadString = JSON.stringify(payload);
-    if (!this.verifyWebhookSignature(payloadString, signature, webhookSecret)) {
-      throw new ValidationError('Invalid webhook signature');
-    }
-
-    // Check idempotency - prevent duplicate processing
-    const existingPayment = await paymentsRepository.getPaymentByTransactionId(
-      payload.transactionId
-    );
-
-    if (existingPayment && existingPayment.status !== 'pending') {
-      logger.info(
-        { transactionId: payload.transactionId },
-        'Webhook already processed (idempotency check)'
-      );
-      return;
-    }
-
-    // Find payment by reference ID (order ID or payment ID)
-    const payment = existingPayment || await paymentsRepository.getPaymentById(payload.referenceId);
-
-    if (!payment) {
-      throw new NotFoundError('Payment');
-    }
-
-    // Update payment with transaction ID
-    await paymentsRepository.updatePaymentStatus(
-      payment.id,
-      payment.status,
-      payload.transactionId,
-      payload
-    );
-
-    // Process based on payment status
-    if (payload.status === 'success' || payload.status === 'completed') {
-      await this.completePayment(payment.id);
-    } else if (payload.status === 'failed') {
-      await this.failPayment(payment.id, 'Payment failed via PromptPay');
-    }
-
-    logger.info(
-      { paymentId: payment.id, transactionId: payload.transactionId },
-      'PromptPay webhook processed'
-    );
-  }
-
-  /**
-   * Handle 2C2P webhook
-   */
-  async handle2C2PWebhook(
-    payload: TwoC2PWebhookPayload
-  ): Promise<void> {
-    // Initialize 2C2P client for signature verification
-    const twoC2PClient = getTwoC2PClient({
-      merchantId: paymentConfig.twoC2P.merchantId,
-      secretKey: paymentConfig.twoC2P.secretKey,
-      apiUrl: paymentConfig.twoC2P.apiUrl,
-      backendReturnUrl: paymentConfig.twoC2P.backendReturnUrl,
-    });
-
-    // Verify webhook signature using 2C2P client
-    // TODO: Verify webhook signature
-    // if (!twoC2PClient.verifyWebhookPayload(payload)) {
-    //   logger.error(
-    //     { orderId: payload.order_id },
-    //     'Invalid 2C2P webhook signature'
-    //   );
-    //   throw new ValidationError('Invalid webhook signature');
-    // }
-
-    // Check idempotency - prevent duplicate processing
-    const existingPayment = await paymentsRepository.getPaymentByTransactionId(
-      payload.transaction_ref
-    );
-
-    if (existingPayment && existingPayment.status !== 'pending') {
-      logger.info(
-        { transactionId: payload.transaction_ref },
-        'Webhook already processed (idempotency check)'
-      );
-      return;
-    }
-
-    // Find payment by payment ID (order_id in webhook is actually payment ID)
-    let payment = existingPayment;
-
-    if (!payment) {
-      payment = await paymentsRepository.getPaymentById(payload.order_id);
-    }
-
-    if (!payment) {
-      logger.error(
-        { orderId: payload.order_id },
-        'Payment not found for 2C2P webhook'
-      );
-      throw new NotFoundError('Payment');
-    }
-
-    // Extract card details if available
-    const cardLast4 = payload.card_number
-      ? payload.card_number.slice(-4)
-      : null;
-    const cardBrand = payload.card_brand || null;
-
-    // Build provider response with card details
-    const providerResponse = {
-      version: payload.version,
-      merchant_id: payload.merchant_id,
-      payment_status: payload.payment_status,
-      amount: payload.amount,
-      currency: payload.currency,
-      transaction_ref: payload.transaction_ref,
-      cardLast4,
-      cardBrand,
-      processedAt: new Date().toISOString(),
-    };
-
-    // Update payment with transaction reference and provider response
-    await paymentsRepository.updatePaymentStatus(
-      payment.id,
-      payment.status,
-      payload.transaction_ref,
-      providerResponse
-    );
-
-    // Update card details in payment record if available
-    if (cardLast4 || cardBrand) {
-      const { payments: paymentsTable } = await import('../../core/database/schema/orders.schema');
-      await db
-        .update(paymentsTable)
-        .set({
-          cardLast4,
-          cardBrand,
-        })
-        .where(eq(paymentsTable.id, payment.id));
-    }
-
-    // Process based on payment status
-    // 2C2P uses '000' for success, or 'success' string
-    if (
-      payload.payment_status === '000' ||
-      payload.payment_status === 'success' ||
-      payload.payment_status === 'completed'
-    ) {
-      await this.completePayment(payment.id);
-      logger.info(
-        { paymentId: payment.id, transactionId: payload.transaction_ref },
-        '2C2P payment completed via webhook'
-      );
-    } else {
-      await this.failPayment(
-        payment.id,
-        `Payment failed with status: ${payload.payment_status}`
-      );
-      logger.warn(
-        {
-          paymentId: payment.id,
-          transactionId: payload.transaction_ref,
-          status: payload.payment_status
-        },
-        '2C2P payment failed via webhook'
-      );
-    }
   }
 
   /**
@@ -686,57 +515,84 @@ export class PaymentsDomain {
 
       const transactionRef = decodedData?.tranRef || decodedData?.transactionRef;
       const invoiceNo = decodedData?.invoiceNo;
+      const orderId = decodedData?.userDefined1;
 
 
       if (!invoiceNo) {
         throw new ValidationError('Missing invoice/order number in return data');
       }
 
-      // Find the order by invoiceNo (invoiceNo is stored on the order table, not the payment)
-      const order = await ordersRepository.getOrderByInvoiceNo(invoiceNo);
-
-      if (!order) {
-        logger.warn({ invoiceNo }, 'Order not found by invoiceNo during 2C2P return processing');
-        throw new NotFoundError('Order');
+      if (!orderId) {
+        throw new ValidationError('Missing order ID in return data');
       }
 
-      // Get the payment associated with this order
-      const payments = await paymentsRepository.getPaymentsByOrderId(order.id);
-      const payment = payments.length > 0 ? payments[payments.length - 1] : null; // Get the most recent payment
+      return db.transaction(async tx => {
+        try {
+          // Find the order by orderId (orderId is stored on the order table, not the payment)
+          const order = await ordersRepository.getOrderById(orderId, tx);
 
-      if (payment) {
-        // Only update if currently pending and we have a definitive result
-        if (payment.status === 'pending') {
-
-          if (status === 'completed') {
-            await this.completePayment(payment.id);
-          } else if (status === 'failed') {
-            await this.failPayment(payment.id, decodedData?.respDesc || 'Payment failed (return)');
+          if (!order) {
+            logger.warn({ orderId }, 'Order not found by orderId during 2C2P return processing');
+            throw new NotFoundError('Order');
           }
+
+
+          // Get the payment associated with this order
+          const payments = await paymentsRepository.getPaymentsByOrderId(order.id, tx);
+          const payment = payments.length > 0 ? payments[payments.length - 1] : null; // Get the most recent payment
+
+          if (payment) {
+            // Only update if currently pending and we have a definitive result
+            if (payment.status === 'pending') {
+              if (status === 'completed') {
+                await Promise.all([
+                  ordersRepository.updatePaymentStatus(order.id, 'paid', tx),
+                  this.completePayment(payment.id, tx)
+                ])
+              } else if (status === 'failed') {
+                await Promise.all([
+                  ordersRepository.updatePaymentStatus(order.id, 'failed', tx),
+                  this.failPayment(payment.id, decodedData?.respDesc || 'Payment failed (return)', tx)
+                ])
+              }
+            }
+          } else {
+            logger.warn({ invoiceNo, orderId: order.id }, 'Payment not found for order during 2C2P return processing');
+          }
+
+          // Return the payment status response
+          // We fetch fresh status to be sure
+          if (payment) {
+            const currentStatus = await this.getPaymentStatus(payment.id, tx);
+            return {
+              ...currentStatus,
+              message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
+              transactionRef
+            };
+          }
+
+          // If no payment found, return basic status info
+          return {
+            paymentId: '',
+            status,
+            transactionId: transactionRef,
+            message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
+            transactionRef
+          };
+        } catch (error) {
+          // TODO: Save to retry table and using cronjob to retry action.
+
+          tx.rollback();
+          logger.error(
+            {
+              error,
+              payloadRaw,
+            },
+            'Failed to handle 2C2P return event'
+          );
+          throw error; // Re-throw to allow proper error handling by caller
         }
-      } else {
-        logger.warn({ invoiceNo, orderId: order.id }, 'Payment not found for order during 2C2P return processing');
-      }
-
-      // Return the payment status response
-      // We fetch fresh status to be sure
-      if (payment) {
-        const currentStatus = await this.getPaymentStatus(payment.id);
-        return {
-          ...currentStatus,
-          message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
-          transactionRef
-        };
-      }
-
-      // If no payment found, return basic status info
-      return {
-        paymentId: '',
-        status,
-        transactionId: transactionRef,
-        message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
-        transactionRef
-      };
+      })
     } catch (error) {
       logger.error(
         {

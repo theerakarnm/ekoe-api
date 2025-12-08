@@ -19,7 +19,7 @@ const ordersRoutes = new Hono<{
 
 // Public endpoints
 // Get available shipping methods
-ordersRoutes.get('/shipping-methods', async (c) => {
+ordersRoutes.get('/orders/shipping-methods', async (c) => {
   const shippingMethods = getAllShippingMethods();
   return ResponseBuilder.success(c, shippingMethods);
 });

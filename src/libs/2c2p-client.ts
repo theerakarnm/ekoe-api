@@ -13,6 +13,7 @@ export interface TwoC2PConfig {
 
 export interface CreatePaymentSessionParams {
   orderId: string;
+  userId: string;
   amount: number | string;
   currency: string;
   returnUrl: string;
@@ -141,13 +142,12 @@ export class TwoC2PClient {
         amount: amountDecimal, // Format as string with 2 decimal places (e.g., "100.00")
         currencyCode: params.currency,
         paymentChannel: ['CC'],
-        // nonceStr: nonceStr,
+        nonceStr: nonceStr,
+        userDefined1: params.orderId,
+        userDefined2: params.userId,
         frontendReturnUrl: params.returnUrl,
         backendReturnUrl: this.backendReturnUrl,
       };
-
-      console.log(tokenPayload);
-
 
       logger.info(
         {

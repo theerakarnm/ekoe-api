@@ -21,6 +21,9 @@ import type {
 } from './orders.interface';
 import type { FreeGift } from '../cart/cart.interface';
 import { OrderStatusStateMachine, type OrderStatus, type FulfillmentStatus } from './order-status-state-machine';
+import { PgTx } from '../../core/database/types';
+
+export type PaymentStatus = 'paid' | 'pending' | 'failed' | 'refunded';
 
 export class OrdersRepository {
   private stateMachine: OrderStatusStateMachine;
@@ -291,8 +294,8 @@ export class OrdersRepository {
   /**
    * Get order by ID with full details including status history
    */
-  async getOrderById(id: string): Promise<OrderDetail> {
-    const [order] = await db
+  async getOrderById(id: string, tx?: PgTx): Promise<OrderDetail> {
+    const [order] = await (tx || db)
       .select()
       .from(orders)
       .where(eq(orders.id, id))
@@ -525,6 +528,17 @@ export class OrdersRepository {
       .limit(1);
 
     return order ? (order as unknown as Order) : null;
+  }
+
+  async updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus, tx?: PgTx): Promise<void> {
+    await (tx || db)
+      .update(orders)
+      .set({
+        paymentStatus,
+        paidAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(orders.id, orderId));
   }
 }
 
