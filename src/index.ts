@@ -26,13 +26,13 @@ const app = new Hono();
 // Global Middleware
 app.use('*', loggerMiddleware);
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173'], // Frontend URLs
+  origin: ['http://localhost:3000', 'http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev'], // Frontend URLs
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
 app.use('*', securityHeaders);
-app.use('*', validateOrigin(['http://localhost:3000', 'http://localhost:5173']));
+app.use('*', validateOrigin(['http://localhost:3000', 'http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev']));
 app.use('*', errorMiddleware);
 
 // Error Handler
