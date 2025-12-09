@@ -301,6 +301,7 @@ export class ProductsRepository {
       .values({
         productId,
         ...variantData,
+        sku: variantData.sku || null,
       })
       .returning();
 
@@ -326,7 +327,10 @@ export class ProductsRepository {
   }) {
     const result = await db
       .update(productVariants)
-      .set(data)
+      .set({
+        ...data,
+        sku: data.sku || null,
+      })
       .where(eq(productVariants.id, variantId))
       .returning();
 
