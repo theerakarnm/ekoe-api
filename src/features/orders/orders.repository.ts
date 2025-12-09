@@ -530,6 +530,53 @@ export class OrdersRepository {
     return order ? (order as unknown as Order) : null;
   }
 
+  /**
+   * Get full order details by invoice number (from 2C2P payment provider)
+   * Returns order with items, addresses, and status history
+   */
+  async getOrderDetailByInvoiceNo(invoiceNo: string): Promise<OrderDetail | null> {
+    const [order] = await db
+      .select()
+      .from(orders)
+      .where(eq(orders.invoiceNo, invoiceNo))
+      .limit(1);
+
+    if (!order) {
+      return null;
+    }
+
+    // Get order items
+    const items = await db
+      .select()
+      .from(orderItems)
+      .where(eq(orderItems.orderId, order.id));
+
+    // Get shipping address
+    const [shippingAddr] = await db
+      .select()
+      .from(shippingAddresses)
+      .where(eq(shippingAddresses.orderId, order.id))
+      .limit(1);
+
+    // Get billing address
+    const [billingAddr] = await db
+      .select()
+      .from(billingAddresses)
+      .where(eq(billingAddresses.orderId, order.id))
+      .limit(1);
+
+    // Get status history with administrator names
+    const statusHistory = await this.getOrderStatusHistory(order.id);
+
+    return {
+      ...order,
+      items,
+      shippingAddress: shippingAddr || null,
+      billingAddress: billingAddr || null,
+      statusHistory,
+    };
+  }
+
   async updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus, tx?: PgTx): Promise<void> {
     await (tx || db)
       .update(orders)

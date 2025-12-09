@@ -52,6 +52,13 @@ ordersRoutes.get('/orders/:id', requireCustomerAuth, async (c) => {
   return ResponseBuilder.success(c, order);
 });
 
+// Get order by invoice number (for 2C2P payment return) - public endpoint
+ordersRoutes.get('/orders/invoice/:invoiceNo', async (c) => {
+  const invoiceNo = c.req.param('invoiceNo');
+  const order = await ordersDomain.getOrderByInvoiceNo(invoiceNo);
+  return ResponseBuilder.success(c, order);
+});
+
 // Get order status history - customer endpoint
 ordersRoutes.get('/orders/:id/status-history', requireCustomerAuth, async (c) => {
   const id = c.req.param('id');

@@ -325,6 +325,18 @@ export class OrdersDomain {
   }
 
   /**
+   * Get order by invoice number (from 2C2P payment provider)
+   * Returns full order details with items, addresses, and status history
+   */
+  async getOrderByInvoiceNo(invoiceNo: string) {
+    const order = await ordersRepository.getOrderDetailByInvoiceNo(invoiceNo);
+    if (!order) {
+      throw new NotFoundError('Order');
+    }
+    return order;
+  }
+
+  /**
    * Send status notification email asynchronously
    */
   private async sendStatusNotification(
