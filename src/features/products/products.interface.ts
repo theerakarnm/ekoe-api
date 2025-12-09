@@ -14,6 +14,36 @@ export const createProductSchema = z.object({
   metaTitle: z.string().optional(),
   metaDescription: z.string().optional(),
   trackInventory: z.boolean().default(true),
+  // Additional product details
+  ingredients: z.object({
+    keyIngredients: z.array(z.object({
+      name: z.string(),
+      description: z.string(),
+      image: z.string().optional(),
+    })).optional(),
+    fullList: z.string().optional(),
+  }).optional(),
+  howToUse: z.object({
+    steps: z.array(z.object({
+      title: z.string(),
+      description: z.string(),
+      icon: z.string().optional(),
+    })).optional(),
+    proTips: z.array(z.string()).optional(),
+    note: z.string().optional(),
+  }).optional(),
+  complimentaryGift: z.object({
+    name: z.string().optional(),
+    description: z.string().optional(),
+    image: z.string().optional(),
+    value: z.string().optional(),
+  }).optional(),
+  realUserReviews: z.object({
+    image: z.string().optional(),
+    content: z.string().optional(),
+  }).optional(),
+  goodFor: z.string().optional(),
+  whyItWorks: z.string().optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

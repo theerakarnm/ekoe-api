@@ -34,6 +34,16 @@ export const products = pgTable("products", {
   // Inventory
   trackInventory: boolean("track_inventory").default(true),
 
+  // Additional product details (JSONB)
+  ingredients: jsonb("ingredients"), // { keyIngredients: [], fullList: string }
+  howToUse: jsonb("how_to_use"), // { steps: [], proTips: [], note: string }
+  complimentaryGift: jsonb("complimentary_gift"), // { name, description, image, value }
+  realUserReviews: jsonb("real_user_reviews"), // { image: string, content: string }
+
+  // Additional text fields
+  goodFor: text("good_for"),
+  whyItWorks: text("why_it_works"),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),

@@ -141,7 +141,7 @@ export class TwoC2PClient {
         description: params.description || `Order ${invNo}`,
         amount: amountDecimal, // Format as string with 2 decimal places (e.g., "100.00")
         currencyCode: params.currency,
-        paymentChannel: ['CC'],
+        paymentChannel: ['CC', 'PPQR'],
         nonceStr: nonceStr,
         userDefined1: params.orderId,
         userDefined2: params.userId,
