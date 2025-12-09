@@ -113,8 +113,8 @@ export class PaymentsRepository {
   /**
    * Mark payment as completed
    */
-  async markPaymentCompleted(id: string, completedAt: Date): Promise<Payment> {
-    const [payment] = await db
+  async markPaymentCompleted(id: string, completedAt: Date, tx?: PgTx): Promise<Payment> {
+    const [payment] = await (tx || db)
       .update(payments)
       .set({
         status: 'completed',
@@ -136,7 +136,8 @@ export class PaymentsRepository {
   async markPaymentFailed(
     id: string,
     failedAt: Date,
-    reason?: string
+    reason?: string,
+    tx?: PgTx
   ): Promise<Payment> {
     const updateData: any = {
       status: 'failed',
@@ -151,7 +152,7 @@ export class PaymentsRepository {
       };
     }
 
-    const [payment] = await db
+    const [payment] = await (tx || db)
       .update(payments)
       .set(updateData)
       .where(eq(payments.id, id))

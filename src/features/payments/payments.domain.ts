@@ -232,10 +232,10 @@ export class PaymentsDomain {
    * Updates payment status, order status, and sends confirmation email
    */
   async completePayment(paymentId: string, tnx?: PgTx): Promise<void> {
-    // Execute transaction first
-    await (tnx || db).transaction(async (tx) => {
-      // Get payment details
-      const payment = await paymentsRepository.getPaymentById(paymentId);
+    // Helper function to execute the payment completion logic
+    const executeCompletion = async (tx: PgTx) => {
+      // Get payment details - use transaction context
+      const payment = await paymentsRepository.getPaymentById(paymentId, tx);
       if (!payment) {
         throw new NotFoundError('Payment');
       }
@@ -243,8 +243,8 @@ export class PaymentsDomain {
       // Validate status transition
       this.validateStatusTransition(payment.status, 'completed');
 
-      // Update payment status
-      await paymentsRepository.markPaymentCompleted(paymentId, new Date());
+      // Update payment status - use transaction context
+      await paymentsRepository.markPaymentCompleted(paymentId, new Date(), tx);
 
       // Update order payment status
       await tx
@@ -257,7 +257,7 @@ export class PaymentsDomain {
         .where(eq(orders.id, payment.orderId));
 
       // Get order details for email
-      const order = await ordersRepository.getOrderById(payment.orderId);
+      const order = await ordersRepository.getOrderById(payment.orderId, tx);
 
       // Send confirmation email (outside transaction to avoid blocking)
       setImmediate(async () => {
@@ -284,31 +284,44 @@ export class PaymentsDomain {
         { paymentId, orderId: payment.orderId },
         'Payment completed successfully'
       );
-    });
+    };
+
+    // If transaction is provided, use it directly; otherwise create a new one
+    if (tnx) {
+      await executeCompletion(tnx);
+    } else {
+      await db.transaction(async (tx) => {
+        await executeCompletion(tx);
+      });
+    }
 
     // After transaction completes, trigger order status update through order domain
     // This ensures state machine validation and proper email notifications
-    const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
+    // Note: Only do this if we're not inside another transaction (tnx is not provided)
+    // because the caller (process2C2PReturnData) will handle this
+    if (!tnx) {
+      const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
 
-    if (updatedPayment) {
-      try {
-        // Await the event handling to ensure it completes
-        const ordersDomain = getOrdersDomain();
-        await ordersDomain.handlePaymentEvent({
-          type: 'payment_completed',
-          orderId: updatedPayment!.orderId,
-          timestamp: new Date(),
-          metadata: {
-            paymentId,
-            transactionId: updatedPayment!.transactionId || undefined,
-          },
-        });
-      } catch (error) {
-        logger.error(
-          { error, paymentId, orderId: updatedPayment!.orderId },
-          'Failed to handle payment completion event'
-        );
-        // Don't throw - payment is already completed, this is just status sync
+      if (updatedPayment) {
+        try {
+          // Await the event handling to ensure it completes
+          const ordersDomain = getOrdersDomain();
+          await ordersDomain.handlePaymentEvent({
+            type: 'payment_completed',
+            orderId: updatedPayment!.orderId,
+            timestamp: new Date(),
+            metadata: {
+              paymentId,
+              transactionId: updatedPayment!.transactionId || undefined,
+            },
+          });
+        } catch (error) {
+          logger.error(
+            { error, paymentId, orderId: updatedPayment!.orderId },
+            'Failed to handle payment completion event'
+          );
+          // Don't throw - payment is already completed, this is just status sync
+        }
       }
     }
   }
@@ -318,10 +331,10 @@ export class PaymentsDomain {
    * Updates payment status and order status
    */
   async failPayment(paymentId: string, reason: string, tnx?: PgTx): Promise<void> {
-    // Execute transaction first
-    await (tnx || db).transaction(async (tx) => {
-      // Get payment details
-      const payment = await paymentsRepository.getPaymentById(paymentId);
+    // Helper function to execute the payment failure logic
+    const executeFailure = async (tx: PgTx) => {
+      // Get payment details - use transaction context
+      const payment = await paymentsRepository.getPaymentById(paymentId, tx);
       if (!payment) {
         throw new NotFoundError('Payment');
       }
@@ -329,8 +342,8 @@ export class PaymentsDomain {
       // Validate status transition
       this.validateStatusTransition(payment.status, 'failed');
 
-      // Update payment status
-      await paymentsRepository.markPaymentFailed(paymentId, new Date(), reason);
+      // Update payment status - use transaction context
+      await paymentsRepository.markPaymentFailed(paymentId, new Date(), reason, tx);
 
       // Update order payment status
       await tx
@@ -342,7 +355,7 @@ export class PaymentsDomain {
         .where(eq(orders.id, payment.orderId));
 
       // Get order details for email
-      const order = await ordersRepository.getOrderById(payment.orderId);
+      const order = await ordersRepository.getOrderById(payment.orderId, tx);
 
       // Send failure notification email
       setImmediate(async () => {
@@ -369,28 +382,40 @@ export class PaymentsDomain {
         { paymentId, orderId: payment.orderId, reason },
         'Payment failed'
       );
-    });
+    };
+
+    // If transaction is provided, use it directly; otherwise create a new one
+    if (tnx) {
+      await executeFailure(tnx);
+    } else {
+      await db.transaction(async (tx) => {
+        await executeFailure(tx);
+      });
+    }
 
     // After transaction completes, trigger order status event through order domain
     // This records the failure in order status history
-    const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
-    if (updatedPayment) {
-      try {
-        const ordersDomain = getOrdersDomain();
-        await ordersDomain.handlePaymentEvent({
-          type: 'payment_failed',
-          orderId: updatedPayment!.orderId,
-          timestamp: new Date(),
-          metadata: {
-            paymentId,
-            reason,
-          },
-        });
-      } catch (error) {
-        logger.error(
-          { error, paymentId, orderId: updatedPayment!.orderId },
-          'Failed to handle payment failure event'
-        );
+    // Note: Only do this if we're not inside another transaction
+    if (!tnx) {
+      const updatedPayment = await paymentsRepository.getPaymentById(paymentId);
+      if (updatedPayment) {
+        try {
+          const ordersDomain = getOrdersDomain();
+          await ordersDomain.handlePaymentEvent({
+            type: 'payment_failed',
+            orderId: updatedPayment!.orderId,
+            timestamp: new Date(),
+            metadata: {
+              paymentId,
+              reason,
+            },
+          });
+        } catch (error) {
+          logger.error(
+            { error, paymentId, orderId: updatedPayment!.orderId },
+            'Failed to handle payment failure event'
+          );
+        }
       }
     }
   }
