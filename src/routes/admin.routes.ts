@@ -129,6 +129,48 @@ adminRoutes.delete('/products/:id/images/:imageId', requireAdminAuth, async (c) 
   return ResponseBuilder.noContent(c);
 });
 
+// Generic image upload endpoint (for ingredients, complimentary gifts, real user reviews, etc.)
+adminRoutes.post('/upload-image', requireAdminAuth, async (c) => {
+  const formData = await c.req.formData();
+  const imageFile = formData.get('image');
+
+  if (!imageFile || !(imageFile instanceof File)) {
+    return ResponseBuilder.error(c, 'Image file is required', 400, 'VALIDATION_ERROR');
+  }
+
+  // Upload to R2
+  const url = await storageService.uploadFile(imageFile);
+
+  return ResponseBuilder.success(c, { url });
+});
+
+// Product variants CRUD endpoints
+adminRoutes.get('/products/:id/variants', requireAdminAuth, async (c) => {
+  const productId = c.req.param('id');
+  const variants = await productsDomain.getVariants(productId);
+  return ResponseBuilder.success(c, variants);
+});
+
+adminRoutes.post('/products/:id/variants', requireAdminAuth, async (c) => {
+  const productId = c.req.param('id');
+  const body = await c.req.json();
+  const variant = await productsDomain.addVariant(productId, body);
+  return ResponseBuilder.created(c, variant);
+});
+
+adminRoutes.put('/products/:id/variants/:variantId', requireAdminAuth, async (c) => {
+  const variantId = c.req.param('variantId');
+  const body = await c.req.json();
+  const variant = await productsDomain.updateVariant(variantId, body);
+  return ResponseBuilder.success(c, variant);
+});
+
+adminRoutes.delete('/products/:id/variants/:variantId', requireAdminAuth, async (c) => {
+  const variantId = c.req.param('variantId');
+  await productsDomain.deleteVariant(variantId);
+  return ResponseBuilder.noContent(c);
+});
+
 // Blog post CRUD endpoints
 adminRoutes.get('/blog', requireAdminAuth, async (c) => {
   const page = Number(c.req.query('page') || '1');

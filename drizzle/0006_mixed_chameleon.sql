@@ -1,0 +1,1 @@
+ALTER TABLE "product_variants" ADD COLUMN "variant_type" varchar(100) DEFAULT 'Size' NOT NULL;

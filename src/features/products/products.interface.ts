@@ -19,9 +19,9 @@ export const createProductSchema = z.object({
     keyIngredients: z.array(z.object({
       name: z.string(),
       description: z.string(),
-      image: z.string().optional(),
     })).optional(),
     fullList: z.string().optional(),
+    image: z.string().optional(),
   }).optional(),
   howToUse: z.object({
     steps: z.array(z.object({
@@ -49,6 +49,7 @@ export const createProductSchema = z.object({
 export const updateProductSchema = createProductSchema.partial();
 
 export const createProductVariantSchema = z.object({
+  variantType: z.string().min(1, 'Variant type is required').default('Size'),
   name: z.string().min(1, 'Name is required'),
   value: z.string().min(1, 'Value is required'),
   sku: z.string().optional(),

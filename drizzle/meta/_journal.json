@@ -36,6 +36,20 @@
       "when": 1765300841153,
       "tag": "0004_pretty_slipstream",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765303380676,
+      "tag": "0005_zippy_starjammers",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1765307597317,
+      "tag": "0006_mixed_chameleon",
+      "breakpoints": true
     }
   ]
 }

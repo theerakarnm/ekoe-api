@@ -1,5 +1,5 @@
 import { productsRepository } from './products.repository';
-import type { CreateProductInput, UpdateProductInput, InventoryValidationItem, InventoryValidationResult, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
+import type { CreateProductInput, UpdateProductInput, CreateProductVariantInput, InventoryValidationItem, InventoryValidationResult, ProductFilterParams, PaginatedProducts, Category, PriceRange } from './products.interface';
 import { ValidationError } from '../../core/errors';
 
 // Simple in-memory cache for related products
@@ -205,6 +205,25 @@ export class ProductsDomain {
 
   async deleteProductImage(imageId: string) {
     return await productsRepository.deleteImage(imageId);
+  }
+
+  // Variant CRUD methods
+  async addVariant(productId: string, data: CreateProductVariantInput) {
+    // Verify product exists
+    await productsRepository.findById(productId);
+    return await productsRepository.addVariant(productId, data);
+  }
+
+  async getVariants(productId: string) {
+    return await productsRepository.getVariants(productId);
+  }
+
+  async updateVariant(variantId: string, data: Partial<CreateProductVariantInput>) {
+    return await productsRepository.updateVariant(variantId, data);
+  }
+
+  async deleteVariant(variantId: string) {
+    return await productsRepository.deleteVariant(variantId);
   }
 
   async validateInventory(items: InventoryValidationItem[]): Promise<{

@@ -1,0 +1,1 @@
+ALTER TABLE "products" ADD COLUMN "real_user_reviews" jsonb;

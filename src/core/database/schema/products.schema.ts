@@ -56,6 +56,9 @@ export const productVariants = pgTable("product_variants", {
   id: varchar('id', { length: 36 }).$defaultFn(uuidv7).primaryKey(),
   productId: varchar("product_id", { length: 36 }).notNull().references(() => products.id, { onDelete: "cascade" }),
 
+  // Variant type (e.g., "Size", "Color", "Volume")
+  variantType: varchar("variant_type", { length: 100 }).notNull().default("Size"),
+
   // Variant details
   sku: varchar("sku", { length: 100 }).unique(),
   name: varchar("name", { length: 255 }).notNull(), // e.g., "100ml", "200ml"

@@ -125,6 +125,21 @@ export class ProductsRepository {
       .from(productVariants)
       .where(eq(productVariants.productId, id));
 
+    // Group variants by variantType
+    const variantsByType = new Map<string, typeof variants>();
+    for (const v of variants) {
+      const type = (v as any).variantType || 'Size';
+      if (!variantsByType.has(type)) {
+        variantsByType.set(type, []);
+      }
+      variantsByType.get(type)?.push(v);
+    }
+
+    const groupedVariants = Array.from(variantsByType.entries()).map(([type, options]) => ({
+      type,
+      options
+    }));
+
     // Get images
     const images = await db
       .select()
@@ -135,6 +150,7 @@ export class ProductsRepository {
     return {
       ...result[0],
       variants,
+      groupedVariants,
       images,
     };
   }
@@ -264,6 +280,71 @@ export class ProductsRepository {
 
     if (!result.length) {
       throw new NotFoundError('Product Image');
+    }
+
+    return result[0];
+  }
+
+  // Variant CRUD methods
+  async addVariant(productId: string, variantData: {
+    name: string;
+    value: string;
+    sku?: string;
+    price: number;
+    compareAtPrice?: number;
+    stockQuantity?: number;
+    lowStockThreshold?: number;
+    isActive?: boolean;
+  }) {
+    const result = await db
+      .insert(productVariants)
+      .values({
+        productId,
+        ...variantData,
+      })
+      .returning();
+
+    return result[0];
+  }
+
+  async getVariants(productId: string) {
+    return await db
+      .select()
+      .from(productVariants)
+      .where(eq(productVariants.productId, productId));
+  }
+
+  async updateVariant(variantId: string, data: {
+    name?: string;
+    value?: string;
+    sku?: string;
+    price?: number;
+    compareAtPrice?: number;
+    stockQuantity?: number;
+    lowStockThreshold?: number;
+    isActive?: boolean;
+  }) {
+    const result = await db
+      .update(productVariants)
+      .set(data)
+      .where(eq(productVariants.id, variantId))
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Product Variant');
+    }
+
+    return result[0];
+  }
+
+  async deleteVariant(variantId: string) {
+    const result = await db
+      .delete(productVariants)
+      .where(eq(productVariants.id, variantId))
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Product Variant');
     }
 
     return result[0];
