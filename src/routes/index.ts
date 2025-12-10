@@ -8,6 +8,7 @@ import paymentsRoutes from './payments.routes';
 import cartRoutes from './cart.routes';
 import { promotionalCart } from './promotional-cart.routes';
 import { promotions } from './promotions.routes';
+import blogRoutes from './blog.routes';
 import promotionSecurityRoutes from './promotion-security.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
@@ -104,6 +105,7 @@ router.route('/cart', cartRoutes);
 router.route('/cart/promotional', promotionalCart);
 router.route('/promotions', promotions);
 router.route('/promotion-security', promotionSecurityRoutes);
+router.route('/blog', blogRoutes);
 
 // Orders routes (includes both /orders and /admin/orders paths)
 router.route('/', ordersRoutes);
