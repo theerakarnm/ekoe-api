@@ -25,6 +25,10 @@ export const orders = pgTable("orders", {
   discountAmount: integer("discount_amount").default(0),
   totalAmount: integer("total_amount").notNull(),
 
+  // Promotion tracking
+  appliedPromotions: jsonb("applied_promotions"), // Array of applied promotion details
+  promotionDiscountAmount: integer("promotion_discount_amount").default(0), // in cents
+
   // Currency
   currency: varchar("currency", { length: 3 }).default("THB"),
 
@@ -58,6 +62,11 @@ export const orderItems = pgTable("order_items", {
   unitPrice: integer("unit_price").notNull(), // in cents
   quantity: integer("quantity").notNull(),
   subtotal: integer("subtotal").notNull(), // unitPrice * quantity
+
+  // Promotion tracking
+  promotionDiscountAmount: integer("promotion_discount_amount").default(0), // in cents
+  isPromotionalGift: boolean("is_promotional_gift").default(false),
+  sourcePromotionId: varchar("source_promotion_id", { length: 36 }), // Reference to auto_promotions.id
 
   // Product snapshot
   productSnapshot: jsonb("product_snapshot"), // Store full product details at time of purchase

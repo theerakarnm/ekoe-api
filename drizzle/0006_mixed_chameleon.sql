@@ -1,1 +1,1 @@
-ALTER TABLE "product_variants" ADD COLUMN "variant_type" varchar(100) DEFAULT 'Size' NOT NULL;
+ALTER TABLE "product_variants" ADD COLUMN IF NOT EXISTS "variant_type" varchar(100) DEFAULT 'Size' NOT NULL;

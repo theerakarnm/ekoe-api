@@ -9,6 +9,9 @@ export * from './customers.schema';
 // Marketing & content
 export * from './marketing.schema';
 
+// Promotional system
+export * from './promotional-system.schema';
+
 // Analytics
 export * from './analytics.schema';
 
