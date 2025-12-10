@@ -12,6 +12,7 @@ import * as fc from 'fast-check';
 import { db } from '../../../core/database';
 import { products, productVariants, complimentaryGifts, productGifts } from '../../../core/database/schema/products.schema';
 import { discountCodes, discountCodeUsage } from '../../../core/database/schema/marketing.schema';
+import { users } from '../../../core/database/schema/auth-schema';
 import { cartDomain } from '../cart.domain';
 import { eq, inArray } from 'drizzle-orm';
 import { uuidv7 } from 'uuidv7';
@@ -21,7 +22,28 @@ import type { CartItemInput } from '../cart.interface';
 let testProductIds: string[] = [];
 let testVariantIds: string[] = [];
 let testGiftIds: string[] = [];
+let testUserIds: string[] = [];
 let setupComplete = false;
+
+// Helper function to safely build cart items from specs
+function buildCartItems(itemSpecs: Array<{productIndex: number, variantIndex: number, quantity: number}>): CartItemInput[] {
+  return itemSpecs.map(spec => {
+    const productId = testProductIds[spec.productIndex];
+    const variantIndex = spec.productIndex * 2 + spec.variantIndex;
+    const variantId = testVariantIds[variantIndex];
+    
+    // Ensure we have valid IDs
+    if (!productId || !variantId) {
+      throw new Error(`Invalid test data: productId=${productId}, variantId=${variantId}, productIndex=${spec.productIndex}, variantIndex=${variantIndex}, testProductIds.length=${testProductIds.length}, testVariantIds.length=${testVariantIds.length}`);
+    }
+    
+    return {
+      productId,
+      variantId,
+      quantity: spec.quantity,
+    };
+  });
+}
 
 describe('Cart Property-Based Tests', () => {
 
@@ -89,6 +111,20 @@ describe('Cart Property-Based Tests', () => {
         });
       }
 
+      // Create test users for discount code usage tests
+      for (let i = 0; i < 3; i++) {
+        const userId = uuidv7();
+        testUserIds.push(userId);
+        
+        await db.insert(users).values({
+          id: userId,
+          name: `PBT Test User ${i}`,
+          email: `pbt-test-user-${i}-${userId.slice(0, 8)}@example.com`,
+          emailVerified: true,
+          role: 'customer',
+        });
+      }
+
       setupComplete = true;
     } catch (error) {
       console.error('Failed to setup test data:', error);
@@ -101,6 +137,9 @@ describe('Cart Property-Based Tests', () => {
     
     try {
       // Cleanup all test data (in reverse order of creation due to foreign keys)
+      if (testUserIds.length > 0) {
+        await db.delete(users).where(inArray(users.id, testUserIds));
+      }
       if (testGiftIds.length > 0) {
         // productGifts will be deleted automatically due to cascade
         await db.delete(complimentaryGifts).where(inArray(complimentaryGifts.id, testGiftIds));
@@ -1383,7 +1422,7 @@ describe('Cart Property-Based Tests', () => {
   test('Property 16: Discount code per-customer limit enforcement', async () => {
     const testCode = 'PERCUSTOMERLIMIT_TEST';
     const perCustomerLimit = 2;
-    const testUserId = uuidv7();
+    const testUserId = testUserIds[0]; // Use existing test user
     
     // Create a discount code with per-customer limit
     const [discountCode] = await db.insert(discountCodes).values({
@@ -1512,12 +1551,8 @@ describe('Cart Property-Based Tests', () => {
           // Select discount type
           fc.constantFrom('percentage', 'fixed_amount', 'free_shipping'),
           async (itemSpecs, discountType) => {
-            // Build cart items
-            const items: CartItemInput[] = itemSpecs.map(spec => ({
-              productId: testProductIds[spec.productIndex],
-              variantId: testVariantIds[spec.productIndex * 2 + spec.variantIndex],
-              quantity: spec.quantity,
-            }));
+            // Build cart items using helper
+            const items = buildCartItems(itemSpecs);
 
             // Select appropriate discount code
             const code = discountType === 'percentage' ? percentageCode :
@@ -1607,12 +1642,8 @@ describe('Cart Property-Based Tests', () => {
           // Generate shipping method
           fc.constantFrom('standard', 'express', 'next-day'),
           async (itemSpecs, shippingMethod) => {
-            // Build cart items
-            const items: CartItemInput[] = itemSpecs.map(spec => ({
-              productId: testProductIds[spec.productIndex],
-              variantId: testVariantIds[spec.productIndex * 2 + spec.variantIndex],
-              quantity: spec.quantity,
-            }));
+            // Build cart items using helper
+            const items = buildCartItems(itemSpecs);
 
             // Calculate pricing without discount
             const pricingWithoutDiscount = await cartDomain.calculateCartPricing(items, undefined, shippingMethod);
@@ -1682,12 +1713,8 @@ describe('Cart Property-Based Tests', () => {
             { minLength: 1, maxLength: 5 }
           ),
           async (itemSpecs) => {
-            // Build cart items
-            const items: CartItemInput[] = itemSpecs.map(spec => ({
-              productId: testProductIds[spec.productIndex],
-              variantId: testVariantIds[spec.productIndex * 2 + spec.variantIndex],
-              quantity: spec.quantity,
-            }));
+            // Build cart items using helper
+            const items = buildCartItems(itemSpecs);
 
             // Calculate pricing with capped discount
             const pricing = await cartDomain.calculateCartPricing(items, testCode);
@@ -1770,18 +1797,10 @@ describe('Cart Property-Based Tests', () => {
             ),
           }),
           async ({ applicableItems, nonApplicableItems }) => {
-            // Build cart items
+            // Build cart items using helper
             const items: CartItemInput[] = [
-              ...applicableItems.map(spec => ({
-                productId: testProductIds[spec.productIndex],
-                variantId: testVariantIds[spec.productIndex * 2 + spec.variantIndex],
-                quantity: spec.quantity,
-              })),
-              ...nonApplicableItems.map(spec => ({
-                productId: testProductIds[spec.productIndex],
-                variantId: testVariantIds[spec.productIndex * 2 + spec.variantIndex],
-                quantity: spec.quantity,
-              })),
+              ...buildCartItems(applicableItems),
+              ...buildCartItems(nonApplicableItems),
             ];
 
             // Calculate pricing with product-specific discount

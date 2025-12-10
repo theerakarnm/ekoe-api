@@ -19,6 +19,9 @@ import type {
   OrderDetail,
 } from './orders.interface';
 import type { FreeGift } from '../cart/cart.interface';
+import type { AppliedPromotion } from '../promotions/promotions.interface';
+import { promotionRepository } from '../promotions/promotions.repository';
+import { promotionEngine } from '../promotions/promotion-engine';
 
 export class OrdersDomain {
   private stateMachine = orderStatusStateMachine;
@@ -294,14 +297,123 @@ export class OrdersDomain {
     const productIds = data.items.map(item => item.productId);
     const eligibleGifts = await cartRepository.getEligibleGifts(orderData.subtotal, productIds);
 
+    // Process applied promotions and record usage
+    let promotionDiscountAmount = 0;
+    const appliedPromotions = data.appliedPromotions || [];
+    
+    // Validate and enforce usage limits before order creation
+    if (appliedPromotions.length > 0) {
+      await promotionEngine.validateAndEnforceUsageLimits(appliedPromotions, userId);
+    }
+    
+    // Calculate total promotion discount and collect promotional gifts
+    const allPromotionalGifts: FreeGift[] = [];
+    for (const promotion of appliedPromotions) {
+      promotionDiscountAmount += promotion.discountAmount;
+      allPromotionalGifts.push(...promotion.freeGifts);
+    }
+
+    // Add promotional gift items to the order items
+    const enhancedItems = [...orderData.items];
+    for (const gift of allPromotionalGifts) {
+      const sourcePromotion = appliedPromotions.find(p => 
+        p.freeGifts.some(g => g.productId === gift.productId && g.variantId === gift.variantId)
+      );
+      
+      enhancedItems.push({
+        productId: gift.productId,
+        variantId: gift.variantId,
+        productName: gift.name,
+        variantName: undefined,
+        sku: undefined,
+        unitPrice: 0, // Free gifts have zero price
+        quantity: gift.quantity,
+        subtotal: 0,
+        productSnapshot: {
+          name: gift.name,
+          description: 'Promotional gift',
+          basePrice: 0,
+          giftValue: gift.value,
+        },
+        isPromotionalGift: true,
+        sourcePromotionId: sourcePromotion?.promotionId,
+        promotionDiscountAmount: 0,
+      });
+    }
+
     // Create order with transaction
     const order = await ordersRepository.createOrder(data, {
       orderNumber,
       ...orderData,
+      items: enhancedItems,
       eligibleGifts,
+      appliedPromotions,
+      promotionDiscountAmount,
     });
 
+    // Record promotion usage for analytics and tracking
+    await this.recordPromotionUsage(order.id, appliedPromotions, orderData.subtotal, userId);
+
     return order;
+  }
+
+  /**
+   * Record promotion usage for analytics and tracking
+   */
+  private async recordPromotionUsage(
+    orderId: string,
+    appliedPromotions: AppliedPromotion[],
+    cartSubtotal: number,
+    customerId?: string
+  ): Promise<void> {
+    for (const promotion of appliedPromotions) {
+      try {
+        // Get full promotion details for snapshot
+        const promotionDetails = await promotionRepository.getPromotionById(promotion.promotionId);
+        
+        // Record usage in promotion usage table
+        await promotionRepository.recordPromotionUsage({
+          promotionId: promotion.promotionId,
+          orderId,
+          customerId,
+          discountAmount: promotion.discountAmount,
+          freeGifts: promotion.freeGifts,
+          cartSubtotal,
+          promotionSnapshot: promotionDetails,
+        });
+
+        // Update promotion usage count
+        await promotionRepository.incrementPromotionUsage(promotion.promotionId);
+
+        // Record analytics data
+        await promotionRepository.recordPromotionAnalytics(promotion.promotionId, {
+          applications: 1,
+          totalDiscountAmount: promotion.discountAmount,
+          totalOrders: 1,
+          totalRevenue: cartSubtotal,
+        });
+
+        logger.info(
+          { 
+            promotionId: promotion.promotionId, 
+            orderId, 
+            discountAmount: promotion.discountAmount,
+            customerId 
+          },
+          'Promotion usage recorded successfully'
+        );
+      } catch (error) {
+        // Log error but don't fail order creation
+        logger.error(
+          { 
+            error, 
+            promotionId: promotion.promotionId, 
+            orderId 
+          },
+          'Failed to record promotion usage'
+        );
+      }
+    }
   }
 
   /**

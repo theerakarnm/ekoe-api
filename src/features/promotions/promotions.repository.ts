@@ -296,16 +296,20 @@ export class PromotionRepository {
       })
       .returning();
 
-    // Increment usage count
+    return this.mapPromotionUsageFromDb(createdUsage);
+  }
+
+  /**
+   * Increment promotion usage count
+   */
+  async incrementPromotionUsage(promotionId: string): Promise<void> {
     await db
       .update(autoPromotions)
       .set({
         currentUsageCount: sql`${autoPromotions.currentUsageCount} + 1`,
         updatedAt: new Date(),
       })
-      .where(eq(autoPromotions.id, usage.promotionId));
-
-    return this.mapPromotionUsageFromDb(createdUsage);
+      .where(eq(autoPromotions.id, promotionId));
   }
 
   /**
@@ -481,31 +485,104 @@ export class PromotionRepository {
   /**
    * Record promotion analytics
    */
-  async recordPromotionAnalytics(analytics: Omit<PromotionAnalytics, 'id' | 'createdAt'>): Promise<void> {
+  async recordPromotionAnalytics(promotionId: string, analytics: {
+    applications?: number;
+    totalDiscountAmount?: number;
+    totalOrders?: number;
+    totalRevenue?: number;
+    views?: number;
+  }): Promise<void> {
+    const today = new Date().toISOString().split('T')[0];
+    
     await db
       .insert(autoPromotionAnalytics)
       .values({
-        promotionId: analytics.promotionId,
-        date: analytics.date,
-        hour: analytics.hour,
-        views: analytics.views,
+        promotionId,
+        date: today,
+        hour: null, // Daily analytics
+        views: analytics.views || 0,
+        applications: analytics.applications || 0,
+        totalDiscountAmount: analytics.totalDiscountAmount || 0,
+        totalOrders: analytics.totalOrders || 0,
+        totalRevenue: analytics.totalRevenue || 0,
+      })
+      .onConflictDoUpdate({
+        target: [autoPromotionAnalytics.promotionId, autoPromotionAnalytics.date],
+        set: {
+          views: sql`${autoPromotionAnalytics.views} + ${analytics.views || 0}`,
+          applications: sql`${autoPromotionAnalytics.applications} + ${analytics.applications || 0}`,
+          totalDiscountAmount: sql`${autoPromotionAnalytics.totalDiscountAmount} + ${analytics.totalDiscountAmount || 0}`,
+          totalOrders: sql`${autoPromotionAnalytics.totalOrders} + ${analytics.totalOrders || 0}`,
+          totalRevenue: sql`${autoPromotionAnalytics.totalRevenue} + ${analytics.totalRevenue || 0}`,
+        },
+      });
+  }
+
+  /**
+   * Batch record promotion analytics for multiple promotions
+   */
+  async batchRecordPromotionAnalytics(analyticsData: Array<{
+    promotionId: string;
+    applications?: number;
+    totalDiscountAmount?: number;
+    totalOrders?: number;
+    totalRevenue?: number;
+    views?: number;
+  }>): Promise<void> {
+    if (analyticsData.length === 0) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    
+    // Process each promotion's analytics
+    for (const analytics of analyticsData) {
+      await this.recordPromotionAnalytics(analytics.promotionId, {
         applications: analytics.applications,
         totalDiscountAmount: analytics.totalDiscountAmount,
         totalOrders: analytics.totalOrders,
         totalRevenue: analytics.totalRevenue,
-        conversionRate: analytics.conversionRate?.toString(),
-        averageOrderValue: analytics.averageOrderValue,
-      })
-      .onConflictDoUpdate({
-        target: [autoPromotionAnalytics.promotionId, autoPromotionAnalytics.date, autoPromotionAnalytics.hour],
-        set: {
-          views: sql`${autoPromotionAnalytics.views} + ${analytics.views}`,
-          applications: sql`${autoPromotionAnalytics.applications} + ${analytics.applications}`,
-          totalDiscountAmount: sql`${autoPromotionAnalytics.totalDiscountAmount} + ${analytics.totalDiscountAmount}`,
-          totalOrders: sql`${autoPromotionAnalytics.totalOrders} + ${analytics.totalOrders}`,
-          totalRevenue: sql`${autoPromotionAnalytics.totalRevenue} + ${analytics.totalRevenue}`,
-        },
+        views: analytics.views,
       });
+    }
+  }
+
+  /**
+   * Get promotion analytics for a date range
+   */
+  async getPromotionAnalytics(
+    promotionId: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<PromotionAnalytics[]> {
+    let whereConditions = [eq(autoPromotionAnalytics.promotionId, promotionId)];
+    
+    if (startDate) {
+      whereConditions.push(gte(autoPromotionAnalytics.date, startDate));
+    }
+    
+    if (endDate) {
+      whereConditions.push(lte(autoPromotionAnalytics.date, endDate));
+    }
+
+    const analytics = await db
+      .select()
+      .from(autoPromotionAnalytics)
+      .where(and(...whereConditions))
+      .orderBy(desc(autoPromotionAnalytics.date));
+
+    return analytics.map(a => ({
+      id: a.id,
+      promotionId: a.promotionId,
+      date: a.date,
+      hour: a.hour,
+      views: a.views || 0,
+      applications: a.applications || 0,
+      totalDiscountAmount: a.totalDiscountAmount || 0,
+      totalOrders: a.totalOrders || 0,
+      totalRevenue: a.totalRevenue || 0,
+      conversionRate: a.conversionRate ? parseFloat(a.conversionRate) : undefined,
+      averageOrderValue: a.averageOrderValue,
+      createdAt: new Date(a.createdAt),
+    }));
   }
 
   /**
@@ -561,6 +638,19 @@ export class PromotionRepository {
   }
 
   /**
+   * Helper method to safely parse JSON with fallback
+   */
+  private safeJsonParse(jsonString: string | null): any {
+    if (!jsonString) return undefined;
+    try {
+      return JSON.parse(jsonString);
+    } catch (error) {
+      console.warn('Failed to parse JSON:', jsonString, error);
+      return undefined;
+    }
+  }
+
+  /**
    * Helper method to map database promotion rule to interface
    */
   private mapPromotionRuleFromDb(dbRule: any): PromotionRule {
@@ -572,14 +662,14 @@ export class PromotionRepository {
       operator: dbRule.operator,
       numericValue: dbRule.numericValue ? parseFloat(dbRule.numericValue) : undefined,
       textValue: dbRule.textValue,
-      jsonValue: dbRule.jsonValue ? JSON.parse(dbRule.jsonValue) : undefined,
+      jsonValue: this.safeJsonParse(dbRule.jsonValue),
       benefitType: dbRule.benefitType,
       benefitValue: dbRule.benefitValue ? parseFloat(dbRule.benefitValue) : undefined,
       maxDiscountAmount: dbRule.maxDiscountAmount,
-      applicableProductIds: dbRule.applicableProductIds ? JSON.parse(dbRule.applicableProductIds) : undefined,
-      applicableCategoryIds: dbRule.applicableCategoryIds ? JSON.parse(dbRule.applicableCategoryIds) : undefined,
-      giftProductIds: dbRule.giftProductIds ? JSON.parse(dbRule.giftProductIds) : undefined,
-      giftQuantities: dbRule.giftQuantities ? JSON.parse(dbRule.giftQuantities) : undefined,
+      applicableProductIds: this.safeJsonParse(dbRule.applicableProductIds),
+      applicableCategoryIds: this.safeJsonParse(dbRule.applicableCategoryIds),
+      giftProductIds: this.safeJsonParse(dbRule.giftProductIds),
+      giftQuantities: this.safeJsonParse(dbRule.giftQuantities),
       createdAt: new Date(dbRule.createdAt),
     };
   }

@@ -1,6 +1,7 @@
 import { cartRepository } from './cart.repository';
 import { ValidationError } from '../../core/errors';
 import { calculateShippingCost, isValidShippingMethod } from '../../core/config/shipping.config';
+import { promotionEngine } from '../promotions/promotion-engine';
 import type {
   CartItemInput,
   ValidatedCart,
@@ -10,7 +11,17 @@ import type {
   DiscountValidation,
   FreeGift,
   ShippingMethod,
+  PromotionMessage,
+  NearQualifyingPromotion,
+  PromotionChangeResult,
 } from './cart.interface';
+import type {
+  PromotionEvaluationContext,
+  AppliedPromotion,
+  PromotionEvaluationResult,
+  ConflictResolution,
+  FreeGift as PromotionalFreeGift,
+} from '../promotions/promotions.interface';
 
 export class CartDomain {
   /**
@@ -125,12 +136,13 @@ export class CartDomain {
   }
 
   /**
-   * Calculate cart pricing with server-side validation
+   * Calculate cart pricing with server-side validation and promotion evaluation
    */
   async calculateCartPricing(
     items: CartItemInput[],
     discountCode?: string,
-    shippingMethod?: string
+    shippingMethod?: string,
+    customerId?: string
   ): Promise<CartPricing> {
     // First validate the cart
     const validatedCart = await this.validateCart(items);
@@ -143,12 +155,28 @@ export class CartDomain {
 
     const subtotal = validatedCart.subtotal;
 
-    // Get eligible free gifts
-    const freeGifts = await this.getEligibleFreeGifts(items, subtotal);
+    // Evaluate promotions for the cart
+    const promotionResult = await this.evaluatePromotions(validatedCart, customerId);
+
+    // Get eligible free gifts (legacy system)
+    const legacyFreeGifts = await this.getEligibleFreeGifts(items, subtotal);
+
+    // Convert promotional gifts to legacy format and combine with legacy free gifts
+    const convertedPromotionalGifts: FreeGift[] = promotionResult.freeGifts.map((gift: PromotionalFreeGift) => ({
+      id: gift.productId,
+      name: gift.name,
+      description: `Free gift from promotion`,
+      imageUrl: gift.imageUrl || '',
+      value: gift.value,
+      minPurchaseAmount: undefined,
+      associatedProductIds: undefined,
+    }));
+    
+    const allFreeGifts = [...convertedPromotionalGifts, ...legacyFreeGifts];
 
     // Check if discount code provides free shipping
     let hasFreeShippingDiscount = false;
-    let discountAmount = 0;
+    let discountCodeAmount = 0;
     let appliedDiscount;
 
     if (discountCode) {
@@ -162,7 +190,7 @@ export class CartDomain {
           const applicableProductIds = dbDiscountCode.applicableToProducts as string[] | null;
 
           // Calculate discount with validated items for accurate product-specific discounts
-          discountAmount = this.calculateDiscountAmountWithValidatedItems(
+          discountCodeAmount = this.calculateDiscountAmountWithValidatedItems(
             dbDiscountCode.discountType,
             dbDiscountCode.discountValue,
             validatedCart.items,
@@ -174,7 +202,7 @@ export class CartDomain {
             code: dbDiscountCode.code,
             type: dbDiscountCode.discountType as any as 'percentage' | 'fixed_amount' | 'free_shipping',
             value: dbDiscountCode.discountValue,
-            amount: discountAmount,
+            amount: discountCodeAmount,
           };
         }
       }
@@ -195,25 +223,105 @@ export class CartDomain {
         subtotal,
         false
       );
-      discountAmount = regularShippingCost;
+      discountCodeAmount = regularShippingCost;
       appliedDiscount.amount = regularShippingCost;
     }
+
+    // Calculate total discount amount (promotional + discount code)
+    const totalDiscountAmount = promotionResult.totalDiscount + discountCodeAmount;
 
     // Calculate tax (7% VAT)
     const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
 
     // Calculate total
-    const totalAmount = subtotal + shippingCost + taxAmount - discountAmount;
+    const totalAmount = subtotal + shippingCost + taxAmount - totalDiscountAmount;
 
     return {
       subtotal,
       shippingCost,
       taxAmount,
-      discountAmount,
+      discountAmount: totalDiscountAmount,
       totalAmount,
       discount: appliedDiscount,
-      freeGifts,
+      freeGifts: allFreeGifts,
+      appliedPromotions: promotionResult.selectedPromotion ? [promotionResult.selectedPromotion] : [],
+      promotionalDiscount: promotionResult.totalDiscount,
     };
+  }
+
+  /**
+   * Calculate cart pricing with real-time promotion evaluation
+   */
+  async calculateCartPricingWithPromotions(
+    items: CartItemInput[],
+    customerId?: string,
+    discountCode?: string,
+    shippingMethod?: string
+  ): Promise<CartPricing> {
+    return this.calculateCartPricing(items, discountCode, shippingMethod, customerId);
+  }
+
+  /**
+   * Evaluate promotions for a validated cart
+   */
+  async evaluatePromotions(
+    validatedCart: ValidatedCart,
+    customerId?: string
+  ): Promise<PromotionEvaluationResult> {
+    // Create promotion evaluation context
+    const evaluationContext: PromotionEvaluationContext = {
+      cartItems: validatedCart.items.map(item => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        categoryIds: [], // TODO: Add category information if needed
+      })),
+      cartSubtotal: validatedCart.subtotal,
+      customerId,
+    };
+
+    // Evaluate promotions using the promotion engine
+    return await promotionEngine.evaluatePromotions(evaluationContext);
+  }
+
+  /**
+   * Re-evaluate promotions when cart changes
+   */
+  async reEvaluatePromotions(
+    items: CartItemInput[],
+    customerId?: string,
+    currentPromotions?: AppliedPromotion[]
+  ): Promise<PromotionEvaluationResult> {
+    // Validate the updated cart
+    const validatedCart = await this.validateCart(items);
+
+    if (!validatedCart.isValid) {
+      // If cart is invalid, return empty promotion result
+      return {
+        eligiblePromotions: [],
+        totalDiscount: 0,
+        freeGifts: [],
+      };
+    }
+
+    // Create evaluation context with current promotions
+    const evaluationContext: PromotionEvaluationContext = {
+      cartItems: validatedCart.items.map(item => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        categoryIds: [],
+      })),
+      cartSubtotal: validatedCart.subtotal,
+      customerId,
+      currentPromotions,
+    };
+
+    return await promotionEngine.evaluatePromotions(evaluationContext);
   }
 
   /**
@@ -461,6 +569,355 @@ export class CartDomain {
     // Import and return shipping methods from centralized config
     const { getAllShippingMethods } = require('../../core/config/shipping.config');
     return getAllShippingMethods();
+  }
+
+  /**
+   * Generate promotion messages for near-qualifying customers
+   */
+  async generatePromotionMessages(
+    validatedCart: ValidatedCart,
+    promotionResult: PromotionEvaluationResult,
+    customerId?: string
+  ): Promise<PromotionMessage[]> {
+    const messages: PromotionMessage[] = [];
+
+    // Add benefit explanation for applied promotions
+    if (promotionResult.selectedPromotion) {
+      messages.push({
+        type: 'benefit_explanation',
+        message: `You saved ${promotionResult.selectedPromotion.discountAmount / 100} THB with "${promotionResult.selectedPromotion.promotionName}"`,
+        promotionId: promotionResult.selectedPromotion.promotionId,
+        promotionName: promotionResult.selectedPromotion.promotionName,
+        currentBenefit: promotionResult.selectedPromotion.discountAmount,
+      });
+
+      // Add gift information if applicable
+      if (promotionResult.selectedPromotion.freeGifts.length > 0) {
+        const giftNames = promotionResult.selectedPromotion.freeGifts.map(g => g.name).join(', ');
+        messages.push({
+          type: 'benefit_explanation',
+          message: `You received free gifts: ${giftNames}`,
+          promotionId: promotionResult.selectedPromotion.promotionId,
+          promotionName: promotionResult.selectedPromotion.promotionName,
+        });
+      }
+    }
+
+    // Add selection reason if multiple promotions were eligible
+    if (promotionResult.conflictResolution && promotionResult.eligiblePromotions.length > 1) {
+      messages.push({
+        type: 'selection_reason',
+        message: promotionResult.conflictResolution.reason,
+        promotionId: promotionResult.conflictResolution.selectedPromotionId,
+      });
+    }
+
+    // Find near-qualifying promotions
+    const nearQualifyingPromotions = await this.findNearQualifyingPromotions(validatedCart, customerId);
+    
+    for (const nearPromotion of nearQualifyingPromotions) {
+      messages.push({
+        type: 'near_qualifying',
+        message: nearPromotion.message,
+        promotionId: nearPromotion.promotionId,
+        promotionName: nearPromotion.promotionName,
+        amountNeeded: nearPromotion.amountNeeded,
+        potentialBenefit: nearPromotion.potentialDiscount,
+      });
+    }
+
+    return messages;
+  }
+
+  /**
+   * Find promotions that customers are close to qualifying for
+   */
+  async findNearQualifyingPromotions(
+    validatedCart: ValidatedCart,
+    customerId?: string
+  ): Promise<NearQualifyingPromotion[]> {
+    // This is a simplified implementation
+    // In a full implementation, you would check all active promotions
+    // and see which ones the customer is close to qualifying for
+    
+    const nearQualifying: NearQualifyingPromotion[] = [];
+    
+    // Example: Check for cart value thresholds
+    const commonThresholds = [50000, 100000, 150000, 200000]; // 500, 1000, 1500, 2000 THB
+    
+    for (const threshold of commonThresholds) {
+      if (validatedCart.subtotal < threshold) {
+        const amountNeeded = threshold - validatedCart.subtotal;
+        
+        // Only show if they're within 50% of the threshold
+        if (amountNeeded <= threshold * 0.5) {
+          nearQualifying.push({
+            promotionId: `threshold-${threshold}`,
+            promotionName: `Spend ${threshold / 100} THB Promotion`,
+            amountNeeded,
+            potentialDiscount: Math.round(threshold * 0.1), // 10% discount example
+            potentialGifts: [],
+            message: `Add ${amountNeeded / 100} THB more to unlock a special promotion!`,
+          });
+        }
+        break; // Only show the next threshold
+      }
+    }
+
+    return nearQualifying;
+  }
+
+  /**
+   * Calculate cart pricing with promotion messages
+   */
+  async calculateCartPricingWithMessages(
+    items: CartItemInput[],
+    customerId?: string,
+    discountCode?: string,
+    shippingMethod?: string
+  ): Promise<CartPricing> {
+    const pricing = await this.calculateCartPricing(items, discountCode, shippingMethod, customerId);
+    
+    // Generate promotion messages if we have promotion data
+    if (pricing.appliedPromotions && pricing.appliedPromotions.length > 0) {
+      const validatedCart = await this.validateCart(items);
+      const promotionResult: PromotionEvaluationResult = {
+        eligiblePromotions: [],
+        selectedPromotion: pricing.appliedPromotions[0],
+        totalDiscount: pricing.promotionalDiscount || 0,
+        freeGifts: pricing.appliedPromotions[0].freeGifts,
+      };
+      
+      const messages = await this.generatePromotionMessages(validatedCart, promotionResult, customerId);
+      pricing.promotionMessages = messages;
+    }
+
+    return pricing;
+  }
+
+  /**
+   * Validate and update cart with automatic promotion removal
+   */
+  async validateCartWithPromotionRemoval(
+    items: CartItemInput[],
+    currentPromotions: AppliedPromotion[],
+    customerId?: string
+  ): Promise<{
+    validatedCart: ValidatedCart;
+    updatedPromotions: AppliedPromotion[];
+    removedPromotions: AppliedPromotion[];
+    promotionChanges: PromotionChangeResult[];
+  }> {
+    // First validate the base cart
+    const validatedCart = await this.validateCart(items);
+
+    if (!validatedCart.isValid) {
+      // If cart is invalid, remove all promotions
+      return {
+        validatedCart,
+        updatedPromotions: [],
+        removedPromotions: currentPromotions,
+        promotionChanges: currentPromotions.map(p => ({
+          type: 'removed',
+          promotion: p,
+          reason: 'Cart validation failed',
+        })),
+      };
+    }
+
+    // Re-evaluate promotions with current cart
+    const newPromotionResult = await this.evaluatePromotions(validatedCart, customerId);
+
+    // Compare current promotions with newly eligible promotions
+    const promotionChanges = this.comparePromotions(currentPromotions, newPromotionResult);
+
+    return {
+      validatedCart,
+      updatedPromotions: newPromotionResult.selectedPromotion ? [newPromotionResult.selectedPromotion] : [],
+      removedPromotions: promotionChanges.filter(c => c.type === 'removed').map(c => c.promotion),
+      promotionChanges,
+    };
+  }
+
+  /**
+   * Handle cart quantity changes with promotion re-evaluation
+   */
+  async handleCartQuantityChange(
+    items: CartItemInput[],
+    changedItem: { productId: string; variantId?: string; oldQuantity: number; newQuantity: number },
+    currentPromotions: AppliedPromotion[],
+    customerId?: string
+  ): Promise<{
+    updatedPricing: CartPricing;
+    promotionChanges: PromotionChangeResult[];
+    messages: PromotionMessage[];
+  }> {
+    // Validate cart with promotion removal logic
+    const validationResult = await this.validateCartWithPromotionRemoval(items, currentPromotions, customerId);
+
+    // Calculate new pricing
+    const updatedPricing = await this.calculateCartPricing(items, undefined, undefined, customerId);
+
+    // Generate messages about promotion changes
+    const messages = await this.generatePromotionChangeMessages(
+      validationResult.promotionChanges,
+      changedItem,
+      validationResult.validatedCart
+    );
+
+    return {
+      updatedPricing,
+      promotionChanges: validationResult.promotionChanges,
+      messages,
+    };
+  }
+
+  /**
+   * Resolve promotion conflicts during cart updates
+   */
+  async resolvePromotionConflicts(
+    items: CartItemInput[],
+    conflictingPromotions: AppliedPromotion[],
+    customerId?: string
+  ): Promise<{
+    resolvedPromotions: AppliedPromotion[];
+    conflictResolution: ConflictResolution;
+  }> {
+    // Validate cart first
+    const validatedCart = await this.validateCart(items);
+
+    if (!validatedCart.isValid) {
+      return {
+        resolvedPromotions: [],
+        conflictResolution: {
+          conflictType: 'priority',
+          selectedPromotionId: '',
+          rejectedPromotionIds: conflictingPromotions.map(p => p.promotionId),
+          reason: 'All promotions removed due to cart validation failure',
+        },
+      };
+    }
+
+    // Re-evaluate promotions to get the optimal selection
+    const promotionResult = await this.evaluatePromotions(validatedCart, customerId);
+
+    return {
+      resolvedPromotions: promotionResult.selectedPromotion ? [promotionResult.selectedPromotion] : [],
+      conflictResolution: promotionResult.conflictResolution || {
+        conflictType: 'customer_benefit',
+        selectedPromotionId: promotionResult.selectedPromotion?.promotionId || '',
+        rejectedPromotionIds: conflictingPromotions
+          .filter(p => p.promotionId !== promotionResult.selectedPromotion?.promotionId)
+          .map(p => p.promotionId),
+        reason: 'Selected promotion with highest customer benefit',
+      },
+    };
+  }
+
+  /**
+   * Compare current promotions with newly evaluated promotions
+   */
+  private comparePromotions(
+    currentPromotions: AppliedPromotion[],
+    newPromotionResult: PromotionEvaluationResult
+  ): PromotionChangeResult[] {
+    const changes: PromotionChangeResult[] = [];
+
+    // Check for removed promotions
+    for (const currentPromotion of currentPromotions) {
+      const stillApplied = newPromotionResult.selectedPromotion?.promotionId === currentPromotion.promotionId;
+      
+      if (!stillApplied) {
+        changes.push({
+          type: 'removed',
+          promotion: currentPromotion,
+          reason: 'Cart no longer qualifies for this promotion',
+        });
+      }
+    }
+
+    // Check for new promotions
+    if (newPromotionResult.selectedPromotion) {
+      const wasAlreadyApplied = currentPromotions.some(
+        p => p.promotionId === newPromotionResult.selectedPromotion!.promotionId
+      );
+
+      if (!wasAlreadyApplied) {
+        changes.push({
+          type: 'added',
+          promotion: newPromotionResult.selectedPromotion,
+          reason: 'Cart now qualifies for this promotion',
+        });
+      } else {
+        // Check if promotion benefits changed
+        const currentPromotion = currentPromotions.find(
+          p => p.promotionId === newPromotionResult.selectedPromotion!.promotionId
+        );
+
+        if (currentPromotion && currentPromotion.discountAmount !== newPromotionResult.selectedPromotion.discountAmount) {
+          changes.push({
+            type: 'updated',
+            promotion: newPromotionResult.selectedPromotion,
+            previousPromotion: currentPromotion,
+            reason: 'Promotion benefits updated due to cart changes',
+          });
+        }
+      }
+    }
+
+    return changes;
+  }
+
+  /**
+   * Generate messages about promotion changes
+   */
+  private async generatePromotionChangeMessages(
+    promotionChanges: PromotionChangeResult[],
+    changedItem: { productId: string; variantId?: string; oldQuantity: number; newQuantity: number },
+    validatedCart: ValidatedCart
+  ): Promise<PromotionMessage[]> {
+    const messages: PromotionMessage[] = [];
+
+    for (const change of promotionChanges) {
+      switch (change.type) {
+        case 'removed':
+          messages.push({
+            type: 'benefit_explanation',
+            message: `Promotion "${change.promotion.promotionName}" was removed because your cart no longer qualifies`,
+            promotionId: change.promotion.promotionId,
+            promotionName: change.promotion.promotionName,
+          });
+          break;
+
+        case 'added':
+          messages.push({
+            type: 'benefit_explanation',
+            message: `Great! You now qualify for "${change.promotion.promotionName}" and saved ${change.promotion.discountAmount / 100} THB`,
+            promotionId: change.promotion.promotionId,
+            promotionName: change.promotion.promotionName,
+            currentBenefit: change.promotion.discountAmount,
+          });
+          break;
+
+        case 'updated':
+          const oldBenefit = change.previousPromotion?.discountAmount || 0;
+          const newBenefit = change.promotion.discountAmount;
+          const difference = newBenefit - oldBenefit;
+          
+          messages.push({
+            type: 'benefit_explanation',
+            message: difference > 0 
+              ? `Your savings increased by ${difference / 100} THB with "${change.promotion.promotionName}"`
+              : `Your savings decreased by ${Math.abs(difference) / 100} THB with "${change.promotion.promotionName}"`,
+            promotionId: change.promotion.promotionId,
+            promotionName: change.promotion.promotionName,
+            currentBenefit: newBenefit,
+          });
+          break;
+      }
+    }
+
+    return messages;
   }
 }
 

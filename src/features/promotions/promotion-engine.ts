@@ -851,6 +851,36 @@ export class PromotionEngine {
   }
 
   /**
+   * Validate and enforce usage limits before order completion
+   * This is called during order creation to ensure limits are still valid
+   */
+  async validateAndEnforceUsageLimits(
+    appliedPromotions: AppliedPromotion[],
+    customerId?: string
+  ): Promise<void> {
+    for (const appliedPromotion of appliedPromotions) {
+      const promotion = await promotionRepository.getPromotionById(appliedPromotion.promotionId);
+      
+      if (!promotion) {
+        throw new NotFoundError(`Promotion ${appliedPromotion.promotionId} not found`);
+      }
+
+      // Re-validate usage limits at order creation time
+      if (customerId) {
+        await this.validateUsageLimits(promotion, customerId);
+      }
+
+      // Check if promotion is still active
+      if (!this.isPromotionActive(promotion)) {
+        throw new PromotionExpiredError(
+          `Promotion ${promotion.name} is no longer active`,
+          promotion.id
+        );
+      }
+    }
+  }
+
+  /**
    * Validate server-side calculations to prevent manipulation
    */
   private validateCalculations(

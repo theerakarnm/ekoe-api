@@ -32,6 +32,19 @@ export const createOrderSchema = z.object({
   discountCode: z.string().optional(),
   shippingMethod: z.string().optional().default('standard'),
   userId: z.string().optional(), // For tracking discount usage per customer
+  appliedPromotions: z.array(z.object({
+    promotionId: z.string(),
+    promotionName: z.string(),
+    discountAmount: z.number(),
+    freeGifts: z.array(z.object({
+      productId: z.string(),
+      variantId: z.string().optional(),
+      quantity: z.number(),
+      name: z.string(),
+      imageUrl: z.string().optional(),
+      value: z.number(),
+    })),
+  })).optional(),
 });
 
 // Update order status schema
@@ -59,6 +72,9 @@ export interface OrderItemDetail {
   quantity: number;
   subtotal: number;
   productSnapshot: any;
+  isPromotionalGift: boolean;
+  sourcePromotionId: string | null;
+  promotionDiscountAmount: number;
   createdAt: Date;
 }
 
@@ -111,6 +127,8 @@ export interface Order {
   currency: string | null;
   customerNote: string | null;
   internalNote: string | null;
+  appliedPromotions: any | null; // JSON field for promotion details
+  promotionDiscountAmount: number;
   createdAt: Date;
   updatedAt: Date;
   paidAt: Date | null;

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { AppliedPromotion as PromotionAppliedPromotion } from '../promotions/promotions.interface';
 
 // Cart item schema
 export const cartItemSchema = z.object({
@@ -24,6 +25,19 @@ export const validateDiscountSchema = z.object({
   code: z.string().min(1, 'Discount code is required'),
   subtotal: z.number().min(0, 'Subtotal must be non-negative'),
   items: z.array(cartItemSchema).optional(),
+});
+
+// Promotion evaluation schema
+export const evaluatePromotionsSchema = z.object({
+  items: z.array(cartItemSchema).min(1, 'At least one item is required'),
+  customerId: z.string().optional(),
+});
+
+// Re-evaluate promotions schema
+export const reEvaluatePromotionsSchema = z.object({
+  items: z.array(cartItemSchema).min(1, 'At least one item is required'),
+  customerId: z.string().optional(),
+  currentPromotions: z.array(z.any()).optional(),
 });
 
 // Types
@@ -86,6 +100,36 @@ export interface CartPricing {
   totalAmount: number;
   discount?: AppliedDiscount;
   freeGifts: FreeGift[];
+  appliedPromotions?: PromotionAppliedPromotion[];
+  promotionalDiscount?: number;
+  promotionMessages?: PromotionMessage[];
+}
+
+export interface PromotionMessage {
+  type: 'near_qualifying' | 'urgency' | 'benefit_explanation' | 'selection_reason';
+  message: string;
+  promotionId?: string;
+  promotionName?: string;
+  amountNeeded?: number;
+  expiresAt?: Date;
+  currentBenefit?: number;
+  potentialBenefit?: number;
+}
+
+export interface NearQualifyingPromotion {
+  promotionId: string;
+  promotionName: string;
+  amountNeeded: number;
+  potentialDiscount: number;
+  potentialGifts: FreeGift[];
+  message: string;
+}
+
+export interface PromotionChangeResult {
+  type: 'added' | 'removed' | 'updated';
+  promotion: PromotionAppliedPromotion;
+  previousPromotion?: PromotionAppliedPromotion;
+  reason: string;
 }
 
 export interface DiscountValidation {

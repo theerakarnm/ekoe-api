@@ -45,6 +45,8 @@ export class OrdersRepository {
     totalAmount: number;
     discountCodeId?: string;
     eligibleGifts: FreeGift[];
+    appliedPromotions?: any[];
+    promotionDiscountAmount?: number;
     items: Array<{
       productId: string;
       variantId?: string;
@@ -55,6 +57,9 @@ export class OrdersRepository {
       quantity: number;
       subtotal: number;
       productSnapshot: any;
+      isPromotionalGift?: boolean;
+      sourcePromotionId?: string;
+      promotionDiscountAmount?: number;
     }>;
   }): Promise<OrderDetail> {
     return await db.transaction(async (tx) => {
@@ -63,6 +68,7 @@ export class OrdersRepository {
         .insert(orders)
         .values({
           orderNumber: orderData.orderNumber,
+          userId: data.userId,
           email: data.email,
           status: 'pending',
           paymentStatus: 'pending',
@@ -73,6 +79,8 @@ export class OrdersRepository {
           discountAmount: orderData.discountAmount,
           totalAmount: orderData.totalAmount,
           customerNote: data.customerNote,
+          appliedPromotions: orderData.appliedPromotions || null,
+          promotionDiscountAmount: orderData.promotionDiscountAmount || 0,
           updatedAt: new Date(),
         })
         .returning();
@@ -94,6 +102,9 @@ export class OrdersRepository {
             quantity: item.quantity,
             subtotal: item.subtotal,
             productSnapshot: item.productSnapshot,
+            isPromotionalGift: item.isPromotionalGift || false,
+            sourcePromotionId: item.sourcePromotionId || null,
+            promotionDiscountAmount: item.promotionDiscountAmount || 0,
           })
           .returning();
 
