@@ -153,9 +153,7 @@ export const createPromotionSchema = z.object({
   exclusiveWith: z.array(z.string()).optional(),
 });
 
-export const updatePromotionSchema = createPromotionSchema.partial().extend({
-  id: z.string(),
-});
+export const updatePromotionSchema = createPromotionSchema.partial()
 
 export const createPromotionRuleSchema = z.object({
   promotionId: z.string(),
