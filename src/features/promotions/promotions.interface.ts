@@ -106,7 +106,7 @@ export interface AppliedPromotion {
 
 // Free gift interface
 export interface FreeGift {
-  productId: string;
+  productId?: string;
   variantId?: string;
   quantity: number;
   name: string;

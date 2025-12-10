@@ -37,7 +37,7 @@ export const createOrderSchema = z.object({
     promotionName: z.string(),
     discountAmount: z.number(),
     freeGifts: z.array(z.object({
-      productId: z.string(),
+      productId: z.string().optional(),
       variantId: z.string().optional(),
       quantity: z.number(),
       name: z.string(),
@@ -72,9 +72,9 @@ export interface OrderItemDetail {
   quantity: number;
   subtotal: number;
   productSnapshot: any;
-  isPromotionalGift: boolean;
+  isPromotionalGift: boolean | null;
   sourcePromotionId: string | null;
-  promotionDiscountAmount: number;
+  promotionDiscountAmount: number | null;
   createdAt: Date;
 }
 
@@ -128,7 +128,7 @@ export interface Order {
   customerNote: string | null;
   internalNote: string | null;
   appliedPromotions: any | null; // JSON field for promotion details
-  promotionDiscountAmount: number;
+  promotionDiscountAmount: number | null;
   createdAt: Date;
   updatedAt: Date;
   paidAt: Date | null;

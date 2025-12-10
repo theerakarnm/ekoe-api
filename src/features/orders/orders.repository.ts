@@ -48,7 +48,7 @@ export class OrdersRepository {
     appliedPromotions?: any[];
     promotionDiscountAmount?: number;
     items: Array<{
-      productId: string;
+      productId?: string;
       variantId?: string;
       productName: string;
       variantName?: string;
@@ -93,8 +93,8 @@ export class OrdersRepository {
           .insert(orderItems)
           .values({
             orderId: order.id,
-            productId: item.productId,
-            variantId: item.variantId,
+            productId: item.productId || null,
+            variantId: item.variantId || null,
             productName: item.productName,
             variantName: item.variantName,
             sku: item.sku,
@@ -135,14 +135,16 @@ export class OrdersRepository {
           }
         }
 
-        // Update product sold count
-        await tx
-          .update(products)
-          .set({
-            soldCount: sql`${products.soldCount} + ${item.quantity}`,
-            updatedAt: new Date(),
-          })
-          .where(eq(products.id, item.productId));
+        if (item.productId) {
+          // Update product sold count
+          await tx
+            .update(products)
+            .set({
+              soldCount: sql`${products.soldCount} + ${item.quantity}`,
+              updatedAt: new Date(),
+            })
+            .where(eq(products.id, item.productId));
+        }
       }
 
       // 3. Create shipping address
@@ -231,7 +233,10 @@ export class OrdersRepository {
 
       return {
         ...order,
-        items: createdItems,
+        items: createdItems.map(item => ({
+          ...item,
+          isPromotionalGift: item.isPromotionalGift ?? false,
+        })),
         shippingAddress: shippingAddr,
         billingAddress: billingAddr,
       };
@@ -341,11 +346,14 @@ export class OrdersRepository {
 
     return {
       ...order,
-      items,
+      items: items.map(item => ({
+        ...item,
+        isPromotionalGift: item.isPromotionalGift ?? false,
+      })),
       shippingAddress: shippingAddr || null,
       billingAddress: billingAddr || null,
       statusHistory,
-    };
+    } as OrderDetail;
   }
 
   /**
@@ -413,7 +421,7 @@ export class OrdersRepository {
           .where(eq(orders.id, id));
       }
 
-      return order;
+      return order as Order;
     });
   }
 
@@ -512,7 +520,7 @@ export class OrdersRepository {
       throw new NotFoundError('Order');
     }
 
-    return order;
+    return order as Order;
   }
 
   /**
@@ -581,11 +589,14 @@ export class OrdersRepository {
 
     return {
       ...order,
-      items,
+      items: items.map(item => ({
+        ...item,
+        isPromotionalGift: item.isPromotionalGift ?? false,
+      })),
       shippingAddress: shippingAddr || null,
       billingAddress: billingAddr || null,
       statusHistory,
-    };
+    } as OrderDetail;
   }
 
   async updatePaymentStatus(orderId: string, paymentStatus: PaymentStatus, tx?: PgTx): Promise<void> {

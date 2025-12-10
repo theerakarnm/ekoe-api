@@ -1,16 +1,16 @@
 import { db } from '../../core/database';
-import { 
-  autoPromotions, 
-  autoPromotionRules, 
-  autoPromotionUsage, 
-  autoPromotionAnalytics 
+import {
+  autoPromotions,
+  autoPromotionRules,
+  autoPromotionUsage,
+  autoPromotionAnalytics
 } from '../../core/database/schema/promotional-system.schema';
 import { products } from '../../core/database/schema/products.schema';
 import { eq, and, isNull, lte, gte, inArray, sql, desc, asc, or } from 'drizzle-orm';
-import type { 
-  Promotion, 
-  PromotionRule, 
-  PromotionUsage, 
+import type {
+  Promotion,
+  PromotionRule,
+  PromotionUsage,
   PromotionAnalytics,
   CreatePromotionDto,
   UpdatePromotionDto,
@@ -49,7 +49,7 @@ export class PromotionRepository {
    */
   async updatePromotion(id: string, data: Partial<UpdatePromotionDto>): Promise<Promotion | null> {
     const updateData: any = {};
-    
+
     if (data.name !== undefined) updateData.name = data.name;
     if (data.description !== undefined) updateData.description = data.description;
     if (data.type !== undefined) updateData.type = data.type;
@@ -59,7 +59,7 @@ export class PromotionRepository {
     if (data.usageLimit !== undefined) updateData.usageLimit = data.usageLimit;
     if (data.usageLimitPerCustomer !== undefined) updateData.usageLimitPerCustomer = data.usageLimitPerCustomer;
     if (data.exclusiveWith !== undefined) updateData.exclusiveWith = data.exclusiveWith ? JSON.stringify(data.exclusiveWith) : null;
-    
+
     updateData.updatedAt = new Date();
 
     const [promotion] = await db
@@ -98,7 +98,7 @@ export class PromotionRepository {
     if (!promotion) return null;
 
     const rules = await this.getPromotionRules(id);
-    
+
     return {
       ...promotion,
       rules,
@@ -110,7 +110,7 @@ export class PromotionRepository {
    */
   async getActivePromotions(): Promise<Promotion[]> {
     const now = new Date();
-    
+
     const promotions = await db
       .select()
       .from(autoPromotions)
@@ -134,25 +134,31 @@ export class PromotionRepository {
     status?: string;
     type?: string;
     search?: string;
+    sortBy?: string;
+    sortOrder?: string;
   } = {}): Promise<{ promotions: PromotionListDto[]; total: number }> {
-    const { page = 1, limit = 20, status, type, search } = options;
+    const { page = 1, limit = 20, status, type, search, sortBy = 'createdAt', sortOrder = 'desc' } = options;
     const offset = (page - 1) * limit;
 
     let whereConditions = [isNull(autoPromotions.deletedAt)];
-    
+
     if (status) {
       whereConditions.push(eq(autoPromotions.status, status as any));
     }
-    
+
     if (type) {
       whereConditions.push(eq(autoPromotions.type, type as any));
     }
-    
+
     if (search) {
       whereConditions.push(
         sql`${autoPromotions.name} ILIKE ${'%' + search + '%'} OR (${autoPromotions.description} IS NOT NULL AND ${autoPromotions.description} ILIKE ${'%' + search + '%'})`
       );
     }
+
+    // Determine sort column and order
+    const sortColumn = this.getSortColumn(sortBy);
+    const orderFn = sortOrder === 'asc' ? asc : desc;
 
     const [promotions, totalResult] = await Promise.all([
       db
@@ -169,10 +175,10 @@ export class PromotionRepository {
         })
         .from(autoPromotions)
         .where(and(...whereConditions))
-        .orderBy(desc(autoPromotions.createdAt))
+        .orderBy(orderFn(sortColumn))
         .limit(limit)
         .offset(offset),
-      
+
       db
         .select({ count: sql<number>`count(*)` })
         .from(autoPromotions)
@@ -254,8 +260,8 @@ export class PromotionRepository {
     const promotion = await this.getPromotionById(promotionId);
     if (!promotion || !promotion.exclusiveWith) return [];
 
-    const exclusiveWith = Array.isArray(promotion.exclusiveWith) 
-      ? promotion.exclusiveWith 
+    const exclusiveWith = Array.isArray(promotion.exclusiveWith)
+      ? promotion.exclusiveWith
       : JSON.parse(promotion.exclusiveWith as string);
 
     return otherPromotionIds.filter(id => exclusiveWith.includes(id));
@@ -464,8 +470,6 @@ export class PromotionRepository {
         id: products.id,
         name: products.name,
         status: products.status,
-        stockQuantity: products.stockQuantity,
-        imageUrl: products.imageUrl,
       })
       .from(products)
       .where(and(
@@ -473,12 +477,14 @@ export class PromotionRepository {
         isNull(products.deletedAt)
       ));
 
+    // Note: stockQuantity is tracked per variant, not per product
+    // For gift products, we assume availability based on status
     return productResults.map((product: any) => ({
       id: product.id,
       name: product.name,
       status: product.status,
-      availableQuantity: product.stockQuantity || 0,
-      imageUrl: product.imageUrl,
+      availableQuantity: product.status === 'active' ? 1 : 0,
+      imageUrl: undefined,
     }));
   }
 
@@ -493,7 +499,7 @@ export class PromotionRepository {
     views?: number;
   }): Promise<void> {
     const today = new Date().toISOString().split('T')[0];
-    
+
     await db
       .insert(autoPromotionAnalytics)
       .values({
@@ -532,7 +538,7 @@ export class PromotionRepository {
     if (analyticsData.length === 0) return;
 
     const today = new Date().toISOString().split('T')[0];
-    
+
     // Process each promotion's analytics
     for (const analytics of analyticsData) {
       await this.recordPromotionAnalytics(analytics.promotionId, {
@@ -554,11 +560,11 @@ export class PromotionRepository {
     endDate?: string
   ): Promise<PromotionAnalytics[]> {
     let whereConditions = [eq(autoPromotionAnalytics.promotionId, promotionId)];
-    
+
     if (startDate) {
       whereConditions.push(gte(autoPromotionAnalytics.date, startDate));
     }
-    
+
     if (endDate) {
       whereConditions.push(lte(autoPromotionAnalytics.date, endDate));
     }
@@ -573,15 +579,137 @@ export class PromotionRepository {
       id: a.id,
       promotionId: a.promotionId,
       date: a.date,
-      hour: a.hour,
+      hour: a.hour ?? undefined,
       views: a.views || 0,
       applications: a.applications || 0,
       totalDiscountAmount: a.totalDiscountAmount || 0,
       totalOrders: a.totalOrders || 0,
       totalRevenue: a.totalRevenue || 0,
       conversionRate: a.conversionRate ? parseFloat(a.conversionRate) : undefined,
-      averageOrderValue: a.averageOrderValue,
+      averageOrderValue: a.averageOrderValue ?? undefined,
       createdAt: new Date(a.createdAt),
+    }));
+  }
+
+  /**
+   * Get promotion ROI metrics
+   */
+  async getPromotionROI(promotionId: string, startDate?: string, endDate?: string): Promise<{
+    totalRevenue: number;
+    totalDiscount: number;
+    roi: number;
+    orderCount: number;
+    averageOrderValue: number;
+  }> {
+    let whereConditions = [eq(autoPromotionUsage.promotionId, promotionId)];
+
+    if (startDate) {
+      whereConditions.push(gte(autoPromotionUsage.createdAt, new Date(startDate)));
+    }
+
+    if (endDate) {
+      whereConditions.push(lte(autoPromotionUsage.createdAt, new Date(endDate)));
+    }
+
+    const result = await db
+      .select({
+        totalRevenue: sql<number>`sum(${autoPromotionUsage.cartSubtotal})`,
+        totalDiscount: sql<number>`sum(${autoPromotionUsage.discountAmount})`,
+        orderCount: sql<number>`count(*)`,
+        averageOrderValue: sql<number>`avg(${autoPromotionUsage.cartSubtotal})`,
+      })
+      .from(autoPromotionUsage)
+      .where(and(...whereConditions));
+
+    const metrics = result[0];
+    const totalRevenue = Number(metrics?.totalRevenue || 0);
+    const totalDiscount = Number(metrics?.totalDiscount || 0);
+    const orderCount = Number(metrics?.orderCount || 0);
+    const averageOrderValue = Number(metrics?.averageOrderValue || 0);
+
+    const roi = totalDiscount > 0 ? ((totalRevenue - totalDiscount) / totalDiscount) * 100 : 0;
+
+    return {
+      totalRevenue,
+      totalDiscount,
+      roi: Math.round(roi * 100) / 100,
+      orderCount,
+      averageOrderValue: Math.round(averageOrderValue * 100) / 100,
+    };
+  }
+
+  /**
+   * Get promotion performance trends
+   */
+  async getPromotionTrends(promotionId: string, days: number = 30): Promise<Array<{
+    date: string;
+    applications: number;
+    revenue: number;
+    discountAmount: number;
+    orders: number;
+  }>> {
+    const endDate = new Date();
+    const startDate = new Date(endDate.getTime() - (days * 24 * 60 * 60 * 1000));
+
+    const trends = await db
+      .select({
+        date: sql<string>`DATE(${autoPromotionUsage.createdAt})`,
+        applications: sql<number>`count(*)`,
+        revenue: sql<number>`sum(${autoPromotionUsage.cartSubtotal})`,
+        discountAmount: sql<number>`sum(${autoPromotionUsage.discountAmount})`,
+        orders: sql<number>`count(DISTINCT ${autoPromotionUsage.orderId})`,
+      })
+      .from(autoPromotionUsage)
+      .where(and(
+        eq(autoPromotionUsage.promotionId, promotionId),
+        gte(autoPromotionUsage.createdAt, startDate),
+        lte(autoPromotionUsage.createdAt, endDate)
+      ))
+      .groupBy(sql`DATE(${autoPromotionUsage.createdAt})`)
+      .orderBy(sql`DATE(${autoPromotionUsage.createdAt})`);
+
+    return trends.map(trend => ({
+      date: trend.date,
+      applications: Number(trend.applications),
+      revenue: Number(trend.revenue),
+      discountAmount: Number(trend.discountAmount),
+      orders: Number(trend.orders),
+    }));
+  }
+
+  /**
+   * Get top customers by promotion usage
+   */
+  async getTopCustomersByPromotion(promotionId: string, limit: number = 10): Promise<Array<{
+    customerId: string;
+    usageCount: number;
+    totalSpent: number;
+    totalSavings: number;
+    averageOrderValue: number;
+  }>> {
+    const customers = await db
+      .select({
+        customerId: autoPromotionUsage.customerId,
+        usageCount: sql<number>`count(*)`,
+        totalSpent: sql<number>`sum(${autoPromotionUsage.cartSubtotal})`,
+        totalSavings: sql<number>`sum(${autoPromotionUsage.discountAmount})`,
+        averageOrderValue: sql<number>`avg(${autoPromotionUsage.cartSubtotal})`,
+      })
+      .from(autoPromotionUsage)
+      .where(and(
+        eq(autoPromotionUsage.promotionId, promotionId),
+        sql`${autoPromotionUsage.customerId} IS NOT NULL`
+      ))
+      .groupBy(autoPromotionUsage.customerId)
+      .orderBy(desc(sql`sum(${autoPromotionUsage.cartSubtotal})`))
+      .limit(limit);
+
+    return customers.map(customer => ({
+      customerId: customer.customerId!,
+      usageCount: Number(customer.usageCount),
+      totalSpent: Number(customer.totalSpent),
+      totalSavings: Number(customer.totalSavings),
+      averageOrderValue: Number(customer.averageOrderValue),
     }));
   }
 
@@ -590,7 +718,7 @@ export class PromotionRepository {
    */
   async getPromotionsForStatusUpdate(): Promise<Promotion[]> {
     const now = new Date();
-    
+
     const promotions = await db
       .select()
       .from(autoPromotions)
@@ -611,6 +739,33 @@ export class PromotionRepository {
       ));
 
     return promotions.map(p => this.mapPromotionFromDb(p));
+  }
+
+  /**
+   * Helper method to get sort column
+   */
+  private getSortColumn(sortBy: string) {
+    switch (sortBy) {
+      case 'name':
+        return autoPromotions.name;
+      case 'type':
+        return autoPromotions.type;
+      case 'status':
+        return autoPromotions.status;
+      case 'startsAt':
+        return autoPromotions.startsAt;
+      case 'endsAt':
+        return autoPromotions.endsAt;
+      case 'priority':
+        return autoPromotions.priority;
+      case 'currentUsageCount':
+        return autoPromotions.currentUsageCount;
+      case 'updatedAt':
+        return autoPromotions.updatedAt;
+      case 'createdAt':
+      default:
+        return autoPromotions.createdAt;
+    }
   }
 
   /**

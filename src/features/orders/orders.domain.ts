@@ -19,7 +19,7 @@ import type {
   OrderDetail,
 } from './orders.interface';
 import type { FreeGift } from '../cart/cart.interface';
-import type { AppliedPromotion } from '../promotions/promotions.interface';
+import type { AppliedPromotion, FreeGift as PromotionFreeGift } from '../promotions/promotions.interface';
 import { promotionRepository } from '../promotions/promotions.repository';
 import { promotionEngine } from '../promotions/promotion-engine';
 
@@ -299,27 +299,31 @@ export class OrdersDomain {
 
     // Process applied promotions and record usage
     let promotionDiscountAmount = 0;
-    const appliedPromotions = data.appliedPromotions || [];
-    
+    const appliedPromotions = (data.appliedPromotions || []).map(p => ({
+      ...p,
+      appliedAt: new Date(), // Add missing appliedAt
+    })) as AppliedPromotion[];
+
     // Validate and enforce usage limits before order creation
     if (appliedPromotions.length > 0) {
       await promotionEngine.validateAndEnforceUsageLimits(appliedPromotions, userId);
     }
-    
+
     // Calculate total promotion discount and collect promotional gifts
-    const allPromotionalGifts: FreeGift[] = [];
+    const allPromotionalGifts: PromotionFreeGift[] = [];
     for (const promotion of appliedPromotions) {
       promotionDiscountAmount += promotion.discountAmount;
       allPromotionalGifts.push(...promotion.freeGifts);
     }
 
     // Add promotional gift items to the order items
-    const enhancedItems = [...orderData.items];
+    // Cast to allow optional productId for free gifts
+    const enhancedItems: any[] = [...orderData.items];
     for (const gift of allPromotionalGifts) {
-      const sourcePromotion = appliedPromotions.find(p => 
-        p.freeGifts.some(g => g.productId === gift.productId && g.variantId === gift.variantId)
+      const sourcePromotion = appliedPromotions.find(p =>
+        p.freeGifts.some(g => (g.productId && gift.productId && g.productId === gift.productId) || (g.variantId && gift.variantId && g.variantId === gift.variantId))
       );
-      
+
       enhancedItems.push({
         productId: gift.productId,
         variantId: gift.variantId,
@@ -370,7 +374,11 @@ export class OrdersDomain {
       try {
         // Get full promotion details for snapshot
         const promotionDetails = await promotionRepository.getPromotionById(promotion.promotionId);
-        
+
+        if (!promotionDetails) {
+          throw new Error('Promotion not found');
+        }
+
         // Record usage in promotion usage table
         await promotionRepository.recordPromotionUsage({
           promotionId: promotion.promotionId,
@@ -394,21 +402,21 @@ export class OrdersDomain {
         });
 
         logger.info(
-          { 
-            promotionId: promotion.promotionId, 
-            orderId, 
+          {
+            promotionId: promotion.promotionId,
+            orderId,
             discountAmount: promotion.discountAmount,
-            customerId 
+            customerId
           },
           'Promotion usage recorded successfully'
         );
       } catch (error) {
         // Log error but don't fail order creation
         logger.error(
-          { 
-            error, 
-            promotionId: promotion.promotionId, 
-            orderId 
+          {
+            error,
+            promotionId: promotion.promotionId,
+            orderId
           },
           'Failed to record promotion usage'
         );

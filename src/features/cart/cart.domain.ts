@@ -163,7 +163,7 @@ export class CartDomain {
 
     // Convert promotional gifts to legacy format and combine with legacy free gifts
     const convertedPromotionalGifts: FreeGift[] = promotionResult.freeGifts.map((gift: PromotionalFreeGift) => ({
-      id: gift.productId,
+      id: gift.productId || `gift-${Math.random().toString(36).substr(2, 9)}`, // Fallback ID for non-product gifts
       name: gift.name,
       description: `Free gift from promotion`,
       imageUrl: gift.imageUrl || '',
@@ -171,7 +171,7 @@ export class CartDomain {
       minPurchaseAmount: undefined,
       associatedProductIds: undefined,
     }));
-    
+
     const allFreeGifts = [...convertedPromotionalGifts, ...legacyFreeGifts];
 
     // Check if discount code provides free shipping
@@ -614,7 +614,7 @@ export class CartDomain {
 
     // Find near-qualifying promotions
     const nearQualifyingPromotions = await this.findNearQualifyingPromotions(validatedCart, customerId);
-    
+
     for (const nearPromotion of nearQualifyingPromotions) {
       messages.push({
         type: 'near_qualifying',
@@ -639,16 +639,16 @@ export class CartDomain {
     // This is a simplified implementation
     // In a full implementation, you would check all active promotions
     // and see which ones the customer is close to qualifying for
-    
+
     const nearQualifying: NearQualifyingPromotion[] = [];
-    
+
     // Example: Check for cart value thresholds
     const commonThresholds = [50000, 100000, 150000, 200000]; // 500, 1000, 1500, 2000 THB
-    
+
     for (const threshold of commonThresholds) {
       if (validatedCart.subtotal < threshold) {
         const amountNeeded = threshold - validatedCart.subtotal;
-        
+
         // Only show if they're within 50% of the threshold
         if (amountNeeded <= threshold * 0.5) {
           nearQualifying.push({
@@ -677,7 +677,7 @@ export class CartDomain {
     shippingMethod?: string
   ): Promise<CartPricing> {
     const pricing = await this.calculateCartPricing(items, discountCode, shippingMethod, customerId);
-    
+
     // Generate promotion messages if we have promotion data
     if (pricing.appliedPromotions && pricing.appliedPromotions.length > 0) {
       const validatedCart = await this.validateCart(items);
@@ -687,7 +687,7 @@ export class CartDomain {
         totalDiscount: pricing.promotionalDiscount || 0,
         freeGifts: pricing.appliedPromotions[0].freeGifts,
       };
-      
+
       const messages = await this.generatePromotionMessages(validatedCart, promotionResult, customerId);
       pricing.promotionMessages = messages;
     }
@@ -826,7 +826,7 @@ export class CartDomain {
     // Check for removed promotions
     for (const currentPromotion of currentPromotions) {
       const stillApplied = newPromotionResult.selectedPromotion?.promotionId === currentPromotion.promotionId;
-      
+
       if (!stillApplied) {
         changes.push({
           type: 'removed',
@@ -903,10 +903,10 @@ export class CartDomain {
           const oldBenefit = change.previousPromotion?.discountAmount || 0;
           const newBenefit = change.promotion.discountAmount;
           const difference = newBenefit - oldBenefit;
-          
+
           messages.push({
             type: 'benefit_explanation',
-            message: difference > 0 
+            message: difference > 0
               ? `Your savings increased by ${difference / 100} THB with "${change.promotion.promotionName}"`
               : `Your savings decreased by ${Math.abs(difference) / 100} THB with "${change.promotion.promotionName}"`,
             promotionId: change.promotion.promotionId,
