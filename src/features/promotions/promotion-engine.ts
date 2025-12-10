@@ -112,6 +112,9 @@ export class PromotionEngine {
       context
     );
 
+    // Perform additional validation for high-value promotions
+    this.validateHighValuePromotion(promotion, potentialDiscount, context);
+
     return {
       promotion,
       rules,
@@ -288,7 +291,7 @@ export class PromotionEngine {
           break;
         
         case 'free_gift':
-          const gifts = await this.calculateFreeGifts(benefit);
+          const gifts = await this.calculateFreeGifts(benefit, context);
           potentialGifts.push(...gifts);
           break;
       }
@@ -298,58 +301,81 @@ export class PromotionEngine {
   }
 
   /**
-   * Calculate percentage discount amount with proper capping
+   * Calculate percentage discount amount with proper capping and validation
    */
   private calculatePercentageDiscount(benefit: PromotionRule, context: PromotionEvaluationContext): number {
     const percentage = benefit.benefitValue || 0;
-    let applicableSubtotal = context.cartSubtotal;
-
-    // Apply to specific products if specified
-    if (benefit.applicableProductIds && benefit.applicableProductIds.length > 0) {
-      applicableSubtotal = context.cartItems
-        .filter(item => benefit.applicableProductIds!.includes(item.productId))
-        .reduce((sum, item) => sum + item.subtotal, 0);
+    
+    // Validate percentage is within reasonable bounds
+    if (percentage < 0 || percentage > 100) {
+      throw new ValidationError(`Invalid percentage value: ${percentage}. Must be between 0 and 100.`);
     }
 
+    let applicableSubtotal = this.calculateApplicableSubtotal(benefit, context);
+
+    // Calculate raw discount amount
     let discount = Math.round((applicableSubtotal * percentage) / 100);
 
-    // Apply maximum discount cap if specified
-    if (benefit.maxDiscountAmount && discount > benefit.maxDiscountAmount) {
-      discount = benefit.maxDiscountAmount;
-    }
+    // Apply comprehensive discount capping
+    discount = this.applyDiscountCapping(discount, benefit.maxDiscountAmount, applicableSubtotal);
+
+    // Server-side validation to prevent manipulation
+    this.validateDiscountCalculation(discount, applicableSubtotal, percentage, 'percentage');
 
     return discount;
   }
 
   /**
-   * Calculate fixed discount amount with cart value capping
+   * Calculate fixed discount amount with cart value capping and validation
    */
   private calculateFixedDiscount(benefit: PromotionRule, context: PromotionEvaluationContext): number {
     const fixedAmount = benefit.benefitValue || 0;
-    let applicableSubtotal = context.cartSubtotal;
+    
+    // Validate fixed amount is positive
+    if (fixedAmount < 0) {
+      throw new ValidationError(`Invalid fixed discount amount: ${fixedAmount}. Must be non-negative.`);
+    }
 
+    let applicableSubtotal = this.calculateApplicableSubtotal(benefit, context);
+
+    // Apply cart value capping - don't exceed the applicable subtotal
+    let discount = Math.min(fixedAmount, applicableSubtotal);
+
+    // Apply additional discount capping if specified
+    discount = this.applyDiscountCapping(discount, benefit.maxDiscountAmount, applicableSubtotal);
+
+    // Server-side validation to prevent manipulation
+    this.validateDiscountCalculation(discount, applicableSubtotal, fixedAmount, 'fixed');
+
+    return discount;
+  }
+
+  /**
+   * Calculate applicable subtotal based on product restrictions
+   */
+  private calculateApplicableSubtotal(benefit: PromotionRule, context: PromotionEvaluationContext): number {
     // Apply to specific products if specified
     if (benefit.applicableProductIds && benefit.applicableProductIds.length > 0) {
-      applicableSubtotal = context.cartItems
+      return context.cartItems
         .filter(item => benefit.applicableProductIds!.includes(item.productId))
         .reduce((sum, item) => sum + item.subtotal, 0);
     }
 
-    // Don't exceed the applicable subtotal (prevent negative totals)
-    return Math.min(fixedAmount, applicableSubtotal);
+    // Apply to all products
+    return context.cartSubtotal;
   }
 
   /**
-   * Calculate free gifts with inventory validation
+   * Calculate free gifts with comprehensive inventory validation and tier selection
    */
-  private async calculateFreeGifts(benefit: PromotionRule): Promise<FreeGift[]> {
+  private async calculateFreeGifts(benefit: PromotionRule, context?: PromotionEvaluationContext): Promise<FreeGift[]> {
     const giftProductIds = benefit.giftProductIds || [];
     const giftQuantities = benefit.giftQuantities || [];
 
     if (giftProductIds.length === 0) return [];
 
-    // Validate gift products are available in inventory
-    const validatedGifts = await promotionRepository.validateGiftProducts(giftProductIds);
+    // Validate gift products are available in inventory before promotion application
+    const validatedGifts = await this.validateGiftInventoryAvailability(giftProductIds);
     
     const freeGifts: FreeGift[] = [];
     for (let i = 0; i < giftProductIds.length; i++) {
@@ -357,17 +383,146 @@ export class PromotionEngine {
       const quantity = giftQuantities[i] || 1;
       const validatedGift = validatedGifts.find(g => g.id === productId);
 
-      if (validatedGift && validatedGift.inStock) {
+      if (validatedGift && validatedGift.inStock && validatedGift.availableQuantity >= quantity) {
         freeGifts.push({
           productId,
           quantity,
           name: validatedGift.name,
           value: 0, // Free gifts have no monetary value
+          imageUrl: validatedGift.imageUrl,
         });
       }
     }
 
     return freeGifts;
+  }
+
+  /**
+   * Validate gift inventory availability with detailed stock checking
+   */
+  private async validateGiftInventoryAvailability(productIds: string[]): Promise<Array<{
+    id: string;
+    name: string;
+    inStock: boolean;
+    availableQuantity: number;
+    imageUrl?: string;
+  }>> {
+    if (productIds.length === 0) return [];
+
+    // Get detailed product information including stock levels
+    const giftProducts = await promotionRepository.validateGiftProductsWithStock(productIds);
+    
+    return giftProducts.map(product => ({
+      id: product.id,
+      name: product.name,
+      inStock: product.status === 'active' && (product.availableQuantity || 0) > 0,
+      availableQuantity: product.availableQuantity || 0,
+      imageUrl: product.imageUrl,
+    }));
+  }
+
+  /**
+   * Evaluate gift promotion eligibility with tier selection logic
+   */
+  async evaluateGiftPromotionEligibility(
+    promotion: Promotion,
+    context: PromotionEvaluationContext
+  ): Promise<{ eligible: boolean; selectedTier?: PromotionRule; freeGifts: FreeGift[] }> {
+    // Get all gift benefit rules for this promotion
+    const rules = await promotionRepository.getPromotionRules(promotion.id);
+    const giftBenefitRules = rules.filter(r => r.ruleType === 'benefit' && r.benefitType === 'free_gift');
+    
+    if (giftBenefitRules.length === 0) {
+      return { eligible: false, freeGifts: [] };
+    }
+
+    // Check if basic promotion conditions are met
+    const conditionRules = rules.filter(r => r.ruleType === 'condition');
+    for (const condition of conditionRules) {
+      if (!this.evaluateCondition(condition, context)) {
+        return { eligible: false, freeGifts: [] };
+      }
+    }
+
+    // For multi-tier promotions, select the highest qualifying tier
+    const qualifyingTiers = await this.selectHighestQualifyingGiftTier(giftBenefitRules, context);
+    
+    if (!qualifyingTiers.selectedTier) {
+      return { eligible: false, freeGifts: [] };
+    }
+
+    // Calculate gifts for the selected tier with inventory validation
+    const freeGifts = await this.calculateFreeGifts(qualifyingTiers.selectedTier, context);
+    
+    // If no gifts are available due to inventory, promotion is not eligible
+    if (freeGifts.length === 0) {
+      return { eligible: false, freeGifts: [] };
+    }
+
+    return {
+      eligible: true,
+      selectedTier: qualifyingTiers.selectedTier,
+      freeGifts,
+    };
+  }
+
+  /**
+   * Select highest qualifying gift tier for multi-tier promotions
+   */
+  private async selectHighestQualifyingGiftTier(
+    giftBenefitRules: PromotionRule[],
+    context: PromotionEvaluationContext
+  ): Promise<{ selectedTier?: PromotionRule; qualifyingTiers: PromotionRule[] }> {
+    const qualifyingTiers: PromotionRule[] = [];
+
+    // Evaluate each tier to see if it qualifies
+    for (const tier of giftBenefitRules) {
+      if (await this.evaluateGiftTierConditions(tier, context)) {
+        qualifyingTiers.push(tier);
+      }
+    }
+
+    if (qualifyingTiers.length === 0) {
+      return { qualifyingTiers: [] };
+    }
+
+    // Sort tiers by their threshold value (highest first) to award highest qualifying tier
+    const sortedTiers = qualifyingTiers.sort((a, b) => {
+      const thresholdA = a.numericValue || 0;
+      const thresholdB = b.numericValue || 0;
+      return thresholdB - thresholdA;
+    });
+
+    return {
+      selectedTier: sortedTiers[0], // Highest qualifying tier
+      qualifyingTiers,
+    };
+  }
+
+  /**
+   * Evaluate conditions specific to a gift tier
+   */
+  private async evaluateGiftTierConditions(tier: PromotionRule, context: PromotionEvaluationContext): Promise<boolean> {
+    // For gift tiers, the threshold is typically stored in numericValue
+    // This represents the minimum cart value for this tier
+    const threshold = tier.numericValue || 0;
+    
+    // Check if cart meets the threshold for this tier
+    if (context.cartSubtotal < threshold) {
+      return false;
+    }
+
+    // Additional tier-specific conditions can be added here
+    // For example, checking if specific products are in cart for this tier
+    if (tier.applicableProductIds && tier.applicableProductIds.length > 0) {
+      const cartProductIds = context.cartItems.map(item => item.productId);
+      const hasRequiredProducts = tier.applicableProductIds.some(id => cartProductIds.includes(id));
+      if (!hasRequiredProducts) {
+        return false;
+      }
+    }
+
+    return true;
   }
 
   /**
@@ -390,24 +545,35 @@ export class PromotionEngine {
       };
     }
 
-    // Check for exclusivity conflicts
+    // Apply promotion selection algorithm
+    const selectionResult = await this.applyPromotionSelectionAlgorithm(eligiblePromotions);
+    
+    return selectionResult;
+  }
+
+  /**
+   * Apply sophisticated promotion selection algorithm with conflict resolution
+   */
+  private async applyPromotionSelectionAlgorithm(
+    eligiblePromotions: EligiblePromotion[]
+  ): Promise<{ selectedPromotion?: AppliedPromotion; conflictResolution?: ConflictResolution }> {
+    // Step 1: Check for exclusivity conflicts
     const conflictingPromotions = await this.findExclusivityConflicts(eligiblePromotions);
+    
+    // Step 2: Filter out conflicting promotions if any exist
+    let candidatePromotions = eligiblePromotions;
+    if (conflictingPromotions.length > 0) {
+      candidatePromotions = await this.resolveExclusivityConflicts(eligiblePromotions, conflictingPromotions);
+    }
 
-    // Sort by priority first, then by customer benefit
-    const sortedPromotions = [...eligiblePromotions].sort((a, b) => {
-      // Higher priority first
-      if (a.priority !== b.priority) {
-        return b.priority - a.priority;
-      }
-      
-      // Higher customer benefit first (discount + gift value)
-      const benefitA = a.potentialDiscount + a.potentialGifts.reduce((sum, gift) => sum + gift.value, 0);
-      const benefitB = b.potentialDiscount + b.potentialGifts.reduce((sum, gift) => sum + gift.value, 0);
-      return benefitB - benefitA;
-    });
+    // Step 3: Apply priority-based ordering
+    const priorityOrderedPromotions = this.orderPromotionsByPriority(candidatePromotions);
 
-    const selectedPromotion = sortedPromotions[0];
-    const rejectedPromotions = sortedPromotions.slice(1);
+    // Step 4: Apply customer benefit optimization within same priority levels
+    const optimizedSelection = this.optimizeCustomerBenefit(priorityOrderedPromotions);
+
+    const selectedPromotion = optimizedSelection[0];
+    const rejectedPromotions = optimizedSelection.slice(1);
 
     return {
       selectedPromotion: {
@@ -418,14 +584,106 @@ export class PromotionEngine {
         appliedAt: new Date(),
       },
       conflictResolution: {
-        conflictType: conflictingPromotions.length > 0 ? 'exclusivity' : 'customer_benefit',
+        conflictType: conflictingPromotions.length > 0 ? 'exclusivity' : 
+                     priorityOrderedPromotions[0]?.priority !== priorityOrderedPromotions[1]?.priority ? 'priority' : 'customer_benefit',
         selectedPromotionId: selectedPromotion.promotion.id,
         rejectedPromotionIds: rejectedPromotions.map(p => p.promotion.id),
-        reason: conflictingPromotions.length > 0 
-          ? 'Promotion has exclusivity rules that conflict with other eligible promotions'
-          : 'Selected promotion with highest priority and customer benefit',
+        reason: this.generateConflictResolutionReason(conflictingPromotions.length > 0, selectedPromotion, rejectedPromotions),
       },
     };
+  }
+
+  /**
+   * Resolve exclusivity conflicts by selecting the highest priority promotion from conflicting groups
+   */
+  private async resolveExclusivityConflicts(
+    eligiblePromotions: EligiblePromotion[],
+    conflictingPromotionIds: string[]
+  ): Promise<EligiblePromotion[]> {
+    const nonConflictingPromotions = eligiblePromotions.filter(
+      p => !conflictingPromotionIds.includes(p.promotion.id)
+    );
+    
+    const conflictingPromotions = eligiblePromotions.filter(
+      p => conflictingPromotionIds.includes(p.promotion.id)
+    );
+
+    if (conflictingPromotions.length === 0) {
+      return eligiblePromotions;
+    }
+
+    // Select the highest priority promotion from conflicting ones
+    const selectedConflictingPromotion = conflictingPromotions.reduce((best, current) => {
+      if (current.priority > best.priority) return current;
+      if (current.priority === best.priority) {
+        // Same priority, choose by customer benefit
+        const currentBenefit = current.potentialDiscount + current.potentialGifts.reduce((sum, gift) => sum + gift.value, 0);
+        const bestBenefit = best.potentialDiscount + best.potentialGifts.reduce((sum, gift) => sum + gift.value, 0);
+        return currentBenefit > bestBenefit ? current : best;
+      }
+      return best;
+    });
+
+    return [...nonConflictingPromotions, selectedConflictingPromotion];
+  }
+
+  /**
+   * Order promotions by priority (highest first)
+   */
+  private orderPromotionsByPriority(promotions: EligiblePromotion[]): EligiblePromotion[] {
+    return [...promotions].sort((a, b) => b.priority - a.priority);
+  }
+
+  /**
+   * Optimize customer benefit within same priority levels
+   */
+  private optimizeCustomerBenefit(promotions: EligiblePromotion[]): EligiblePromotion[] {
+    return [...promotions].sort((a, b) => {
+      // First sort by priority (highest first)
+      if (a.priority !== b.priority) {
+        return b.priority - a.priority;
+      }
+      
+      // Within same priority, sort by customer benefit (highest first)
+      const benefitA = this.calculateTotalCustomerBenefit(a);
+      const benefitB = this.calculateTotalCustomerBenefit(b);
+      
+      if (benefitA !== benefitB) {
+        return benefitB - benefitA;
+      }
+
+      // If benefits are equal, prefer the promotion created earlier (more stable)
+      return a.promotion.createdAt.getTime() - b.promotion.createdAt.getTime();
+    });
+  }
+
+  /**
+   * Calculate total customer benefit including discounts and gift values
+   */
+  private calculateTotalCustomerBenefit(promotion: EligiblePromotion): number {
+    const discountBenefit = promotion.potentialDiscount;
+    const giftBenefit = promotion.potentialGifts.reduce((sum, gift) => sum + gift.value, 0);
+    return discountBenefit + giftBenefit;
+  }
+
+  /**
+   * Generate human-readable conflict resolution reason
+   */
+  private generateConflictResolutionReason(
+    hasExclusivityConflict: boolean,
+    selectedPromotion: EligiblePromotion,
+    rejectedPromotions: EligiblePromotion[]
+  ): string {
+    if (hasExclusivityConflict) {
+      return `Selected promotion "${selectedPromotion.promotion.name}" due to exclusivity rules preventing combination with other promotions`;
+    }
+
+    if (rejectedPromotions.length > 0 && selectedPromotion.priority > rejectedPromotions[0].priority) {
+      return `Selected promotion "${selectedPromotion.promotion.name}" due to higher priority (${selectedPromotion.priority})`;
+    }
+
+    const selectedBenefit = this.calculateTotalCustomerBenefit(selectedPromotion);
+    return `Selected promotion "${selectedPromotion.promotion.name}" for optimal customer benefit (${selectedBenefit} cents total value)`;
   }
 
   /**
@@ -482,7 +740,7 @@ export class PromotionEngine {
   }
 
   /**
-   * Apply discount capping to prevent over-discounting
+   * Apply comprehensive discount capping to prevent over-discounting
    */
   private applyDiscountCapping(
     discountAmount: number,
@@ -491,17 +749,105 @@ export class PromotionEngine {
   ): number {
     let cappedDiscount = discountAmount;
 
-    // Apply maximum discount cap if specified
-    if (maxDiscountAmount && cappedDiscount > maxDiscountAmount) {
+    // Ensure discount is non-negative
+    if (cappedDiscount < 0) {
+      cappedDiscount = 0;
+    }
+
+    // Apply maximum discount cap if specified (for percentage discounts)
+    if (maxDiscountAmount && maxDiscountAmount > 0 && cappedDiscount > maxDiscountAmount) {
       cappedDiscount = maxDiscountAmount;
     }
 
-    // Don't exceed the applicable subtotal
+    // Don't exceed the applicable subtotal (prevent negative cart totals)
     if (applicableSubtotal && cappedDiscount > applicableSubtotal) {
       cappedDiscount = applicableSubtotal;
     }
 
-    return cappedDiscount;
+    // Apply reasonable upper bound to prevent abuse (e.g., max 50,000 THB discount)
+    const maxReasonableDiscount = 5000000; // 50,000 THB in cents
+    if (cappedDiscount > maxReasonableDiscount) {
+      cappedDiscount = maxReasonableDiscount;
+    }
+
+    return Math.round(cappedDiscount); // Ensure integer cents
+  }
+
+  /**
+   * Validate discount calculations to prevent manipulation and ensure accuracy
+   */
+  private validateDiscountCalculation(
+    calculatedDiscount: number,
+    applicableSubtotal: number,
+    benefitValue: number,
+    discountType: 'percentage' | 'fixed'
+  ): void {
+    // Validate discount doesn't exceed applicable subtotal
+    if (calculatedDiscount > applicableSubtotal) {
+      throw new ValidationError(
+        `Discount amount (${calculatedDiscount}) exceeds applicable subtotal (${applicableSubtotal})`
+      );
+    }
+
+    // Validate discount is non-negative
+    if (calculatedDiscount < 0) {
+      throw new ValidationError(`Discount amount cannot be negative: ${calculatedDiscount}`);
+    }
+
+    // Type-specific validations
+    if (discountType === 'percentage') {
+      // For percentage discounts, recalculate to verify accuracy
+      const expectedDiscount = Math.round((applicableSubtotal * benefitValue) / 100);
+      const tolerance = Math.max(1, Math.round(expectedDiscount * 0.01)); // 1% tolerance or 1 cent minimum
+      
+      if (Math.abs(calculatedDiscount - expectedDiscount) > tolerance) {
+        throw new ValidationError(
+          `Percentage discount calculation mismatch. Expected: ${expectedDiscount}, Got: ${calculatedDiscount}`
+        );
+      }
+    } else if (discountType === 'fixed') {
+      // For fixed discounts, ensure it doesn't exceed the fixed amount
+      if (calculatedDiscount > benefitValue) {
+        throw new ValidationError(
+          `Fixed discount (${calculatedDiscount}) exceeds specified amount (${benefitValue})`
+        );
+      }
+    }
+
+    // Validate reasonable bounds
+    if (calculatedDiscount > 5000000) { // 50,000 THB
+      throw new ValidationError(`Discount amount exceeds reasonable bounds: ${calculatedDiscount}`);
+    }
+  }
+
+  /**
+   * Perform additional security validation for high-value promotions
+   */
+  private validateHighValuePromotion(
+    promotion: Promotion,
+    calculatedDiscount: number,
+    context: PromotionEvaluationContext
+  ): void {
+    const highValueThreshold = 500000; // 5,000 THB in cents
+
+    if (calculatedDiscount > highValueThreshold) {
+      // Log high-value promotion application for audit
+      console.warn(`High-value promotion applied: ${promotion.id}, discount: ${calculatedDiscount}, customer: ${context.customerId}`);
+
+      // Additional validation for high-value promotions
+      if (calculatedDiscount > context.cartSubtotal * 0.8) { // More than 80% discount
+        throw new ValidationError(
+          `High-value promotion discount (${calculatedDiscount}) exceeds 80% of cart value (${context.cartSubtotal})`
+        );
+      }
+
+      // Check if promotion has reasonable usage limits for high-value discounts
+      if (!promotion.usageLimit || promotion.usageLimit > 1000) {
+        throw new ValidationError(
+          `High-value promotion must have reasonable usage limits (current: ${promotion.usageLimit})`
+        );
+      }
+    }
   }
 
   /**

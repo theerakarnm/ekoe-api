@@ -444,6 +444,41 @@ export class PromotionRepository {
   }
 
   /**
+   * Validate gift products with detailed stock information
+   */
+  async validateGiftProductsWithStock(productIds: string[]): Promise<Array<{
+    id: string;
+    name: string;
+    status: string;
+    availableQuantity: number;
+    imageUrl?: string;
+  }>> {
+    if (productIds.length === 0) return [];
+
+    const productResults = await db
+      .select({
+        id: products.id,
+        name: products.name,
+        status: products.status,
+        stockQuantity: products.stockQuantity,
+        imageUrl: products.imageUrl,
+      })
+      .from(products)
+      .where(and(
+        inArray(products.id, productIds),
+        isNull(products.deletedAt)
+      ));
+
+    return productResults.map((product: any) => ({
+      id: product.id,
+      name: product.name,
+      status: product.status,
+      availableQuantity: product.stockQuantity || 0,
+      imageUrl: product.imageUrl,
+    }));
+  }
+
+  /**
    * Record promotion analytics
    */
   async recordPromotionAnalytics(analytics: Omit<PromotionAnalytics, 'id' | 'createdAt'>): Promise<void> {
