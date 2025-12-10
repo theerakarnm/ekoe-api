@@ -11,7 +11,13 @@ export class BlogDomain {
     sortBy?: string;
     sortOrder?: 'asc' | 'desc';
   }) {
-    return await blogRepository.findAll(params);
+    const result = await blogRepository.findAll(params);
+    return {
+      data: result.posts,
+      total: result.total,
+      page: params.page,
+      limit: params.limit,
+    };
   }
 
   async getBlogPostById(id: string) {
@@ -24,9 +30,13 @@ export class BlogDomain {
       ? generateTableOfContents(data.contentBlocks)
       : undefined;
 
+    // Auto-set publishedAt when status is 'published'
+    const publishedAt = data.status === 'published' ? new Date() : undefined;
+
     return await blogRepository.create({
       ...data,
       tableOfContents: tableOfContents as any,
+      ...(publishedAt && { publishedAt }),
     });
   }
 
@@ -36,9 +46,19 @@ export class BlogDomain {
       ? generateTableOfContents(data.contentBlocks as ContentBlock[])
       : undefined;
 
+    // Auto-set publishedAt when status changes to 'published' (only if not already set)
+    let publishedAt: Date | undefined;
+    if (data.status === 'published') {
+      const existingPost = await blogRepository.findById(id);
+      if (!existingPost.publishedAt) {
+        publishedAt = new Date();
+      }
+    }
+
     return await blogRepository.update(id, {
       ...data,
       ...(tableOfContents !== undefined && { tableOfContents: tableOfContents as any }),
+      ...(publishedAt && { publishedAt }),
     });
   }
 
