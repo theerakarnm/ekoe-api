@@ -56,9 +56,12 @@ export const blogPosts = pgTable("blog_posts", {
   id: varchar('id', { length: 36 }).$defaultFn(uuidv7).primaryKey(),
 
   title: varchar("title", { length: 500 }).notNull(),
+  subtitle: varchar("subtitle", { length: 500 }),
   slug: varchar("slug", { length: 500 }).notNull().unique(),
   excerpt: text("excerpt"),
-  content: text("content"),
+  content: text("content"), // Legacy: kept for backward compatibility
+  contentBlocks: jsonb("content_blocks"), // New: block-based content
+  tableOfContents: jsonb("table_of_contents"), // Auto-generated from headings
 
   // Featured image
   featuredImageUrl: varchar("featured_image_url", { length: 1000 }),

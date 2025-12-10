@@ -1,5 +1,6 @@
 import { blogRepository } from './blog.repository';
-import type { CreateBlogPostInput, UpdateBlogPostInput } from './blog.interface';
+import type { CreateBlogPostInput, UpdateBlogPostInput, ContentBlock } from './blog.interface';
+import { generateTableOfContents } from './blog.interface';
 
 export class BlogDomain {
   async getAllBlogPosts(params: {
@@ -18,11 +19,27 @@ export class BlogDomain {
   }
 
   async createBlogPost(data: CreateBlogPostInput) {
-    return await blogRepository.create(data);
+    // Auto-generate table of contents from heading blocks
+    const tableOfContents = data.contentBlocks
+      ? generateTableOfContents(data.contentBlocks)
+      : undefined;
+
+    return await blogRepository.create({
+      ...data,
+      tableOfContents: tableOfContents as any,
+    });
   }
 
   async updateBlogPost(id: string, data: UpdateBlogPostInput) {
-    return await blogRepository.update(id, data);
+    // Auto-generate table of contents from heading blocks
+    const tableOfContents = data.contentBlocks
+      ? generateTableOfContents(data.contentBlocks as ContentBlock[])
+      : undefined;
+
+    return await blogRepository.update(id, {
+      ...data,
+      ...(tableOfContents !== undefined && { tableOfContents: tableOfContents as any }),
+    });
   }
 
   async deleteBlogPost(id: string) {

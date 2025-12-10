@@ -57,6 +57,13 @@
       "when": 1765367303221,
       "tag": "0007_oval_joystick",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1765382288576,
+      "tag": "0008_add_blog_content_blocks",
+      "breakpoints": true
     }
   ]
 }
