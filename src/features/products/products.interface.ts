@@ -38,6 +38,16 @@ export const createProductSchema = z.object({
     image: z.string().optional(),
     value: z.string().optional(),
   }).optional(),
+
+  // Set items (for product sets)
+  setItems: z.array(z.object({
+    productId: z.string(),
+    quantity: z.number().min(1).default(1),
+  })).optional(),
+
+  // Key benefits
+  benefits: z.array(z.string()).optional(),
+
   realUserReviews: z.object({
     image: z.string().optional(),
     content: z.string().optional(),

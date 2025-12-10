@@ -1,5 +1,5 @@
 import { db } from '../../core/database';
-import { products, productVariants, productImages, productCategories, productTags, categories } from '../../core/database/schema/products.schema';
+import { products, productVariants, productImages, productCategories, productTags, categories, productSets, productBenefits } from '../../core/database/schema/products.schema';
 import { orderItems } from '../../core/database/schema/orders.schema';
 import { eq, ilike, and, sql, desc, asc, isNull, or, inArray, gte, lte, count } from 'drizzle-orm';
 import { NotFoundError, ValidationError } from '../../core/errors';
@@ -152,6 +152,8 @@ export class ProductsRepository {
       variants,
       groupedVariants,
       images,
+      setItems: await db.select().from(productSets).where(eq(productSets.setProductId, id)).orderBy(asc(productSets.sortOrder)),
+      benefits: (await db.select().from(productBenefits).where(eq(productBenefits.productId, id)).orderBy(asc(productBenefits.sortOrder))).map(b => b.benefit),
     };
   }
 
@@ -163,6 +165,33 @@ export class ProductsRepository {
         updatedAt: new Date(),
       })
       .returning();
+
+
+
+    const productId = result[0].id;
+
+    // Handle set items
+    if (data.setItems && data.setItems.length > 0) {
+      await db.insert(productSets).values(
+        data.setItems.map((item, index) => ({
+          setProductId: productId,
+          includedProductId: item.productId,
+          quantity: item.quantity,
+          sortOrder: index,
+        }))
+      );
+    }
+
+    // Handle benefits
+    if (data.benefits && data.benefits.length > 0) {
+      await db.insert(productBenefits).values(
+        data.benefits.map((benefit, index) => ({
+          productId,
+          benefit,
+          sortOrder: index,
+        }))
+      );
+    }
 
     return result[0];
   }
@@ -184,6 +213,43 @@ export class ProductsRepository {
 
     if (!result.length) {
       throw new NotFoundError('Product');
+    }
+
+    // Update set items
+    const setItems = data.setItems;
+    if (setItems) {
+      // Delete existing
+      await db.delete(productSets).where(eq(productSets.setProductId, id));
+
+      // Insert new
+      if (setItems.length > 0) {
+        await db.insert(productSets).values(
+          setItems.map((item, index) => ({
+            setProductId: id,
+            includedProductId: item.productId,
+            quantity: item.quantity,
+            sortOrder: index,
+          }))
+        );
+      }
+    }
+
+    // Update benefits
+    const benefits = data.benefits;
+    if (benefits) {
+      // Delete existing
+      await db.delete(productBenefits).where(eq(productBenefits.productId, id));
+
+      // Insert new
+      if (benefits.length > 0) {
+        await db.insert(productBenefits).values(
+          benefits.map((benefit, index) => ({
+            productId: id,
+            benefit,
+            sortOrder: index,
+          }))
+        );
+      }
     }
 
     return result[0];
