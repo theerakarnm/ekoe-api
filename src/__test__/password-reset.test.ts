@@ -16,7 +16,7 @@ import { db } from '../core/database';
 import { users, sessions, customerProfiles, verifications } from '../core/database/schema';
 import { eq, and, gt } from 'drizzle-orm';
 
-const TEST_USER_EMAIL = `reset-test-${Date.now()}@example.com`;
+const TEST_USER_EMAIL = `contact@theerakarnm.dev`;
 const TEST_USER_PASSWORD = 'OriginalPass123';
 const NEW_PASSWORD = 'NewPassword456';
 const TEST_USER_NAME = 'Reset Test User';

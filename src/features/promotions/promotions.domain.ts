@@ -1,5 +1,7 @@
 import { promotionRepository } from './promotions.repository';
 import { promotionEngine } from './promotion-engine';
+import { promotionScheduler } from './promotion-scheduler';
+import { promotionMonitor } from './promotion-monitor';
 import { 
   ValidationError, 
   NotFoundError, 
@@ -124,55 +126,92 @@ export class PromotionDomain {
    * Activate a scheduled promotion
    */
   async activatePromotion(id: string): Promise<void> {
-    const promotion = await promotionRepository.getPromotionById(id);
-    if (!promotion) {
-      throw new NotFoundError('Promotion not found');
-    }
-
-    if (promotion.status !== 'scheduled' && promotion.status !== 'draft') {
-      throw new ConflictError('Only scheduled or draft promotions can be activated');
-    }
-
-    const now = new Date();
-    if (promotion.startsAt > now) {
-      throw new ConflictError('Cannot activate promotion before its start date');
-    }
-
-    if (promotion.endsAt <= now) {
-      throw new ConflictError('Cannot activate expired promotion');
-    }
-
-    await promotionRepository.updatePromotionStatus(id, 'active');
+    await promotionScheduler.activatePromotion(id);
   }
 
   /**
    * Deactivate an active promotion
    */
   async deactivatePromotion(id: string): Promise<void> {
-    const promotion = await promotionRepository.getPromotionById(id);
-    if (!promotion) {
-      throw new NotFoundError('Promotion not found');
-    }
+    await promotionScheduler.deactivatePromotion(id);
+  }
 
-    if (promotion.status !== 'active') {
-      throw new ConflictError('Only active promotions can be deactivated');
-    }
+  /**
+   * Pause an active promotion
+   */
+  async pausePromotion(id: string): Promise<void> {
+    await promotionScheduler.pausePromotion(id);
+  }
 
-    await promotionRepository.updatePromotionStatus(id, 'paused');
+  /**
+   * Resume a paused promotion
+   */
+  async resumePromotion(id: string): Promise<void> {
+    await promotionScheduler.resumePromotion(id);
   }
 
   /**
    * Process scheduled promotion status updates
    */
   async processScheduledPromotions(): Promise<void> {
-    const promotionsToUpdate = await promotionRepository.getPromotionsForStatusUpdate();
-    
-    for (const promotion of promotionsToUpdate) {
-      const newStatus = this.determinePromotionStatus(promotion.startsAt, promotion.endsAt);
-      if (newStatus !== promotion.status) {
-        await promotionRepository.updatePromotionStatus(promotion.id, newStatus);
-      }
-    }
+    await promotionScheduler.processScheduledPromotions();
+  }
+
+  /**
+   * Get promotion lifecycle events
+   */
+  async getPromotionLifecycleEvents(promotionId: string): Promise<Array<{
+    event: string;
+    timestamp: Date;
+    status: any;
+    details?: any;
+  }>> {
+    return await promotionScheduler.getPromotionLifecycleEvents(promotionId);
+  }
+
+  /**
+   * Get real-time promotion status updates
+   */
+  async getPromotionStatusUpdates(): Promise<Array<{
+    promotionId: string;
+    promotionName: string;
+    currentStatus: any;
+    expectedStatus: any;
+    needsUpdate: boolean;
+    timeToNextChange?: Date;
+  }>> {
+    return await promotionMonitor.getPromotionStatusUpdates();
+  }
+
+  /**
+   * Get promotion system health metrics
+   */
+  async getSystemHealthMetrics(): Promise<{
+    totalPromotions: number;
+    activePromotions: number;
+    scheduledPromotions: number;
+    expiredPromotions: number;
+    conflictCount: number;
+    healthScore: number;
+    issues: string[];
+  }> {
+    return await promotionMonitor.getSystemHealthMetrics();
+  }
+
+  /**
+   * Start promotion scheduling and monitoring services
+   */
+  startPromotionServices(): void {
+    promotionScheduler.start();
+    promotionMonitor.start();
+  }
+
+  /**
+   * Stop promotion scheduling and monitoring services
+   */
+  stopPromotionServices(): void {
+    promotionScheduler.stop();
+    promotionMonitor.stop();
   }
 
   /**

@@ -9,6 +9,7 @@ import { errorMiddleware, errorHandler } from './middleware/error.middleware';
 import { loggerMiddleware } from './middleware/logger.middleware';
 import { validateOrigin, securityHeaders } from './middleware/csrf.middleware';
 import { initializePromptPayClient } from './libs/promptpay-client';
+import { promotionDomain } from './features/promotions/promotions.domain';
 import router from './routes';
 
 // Initialize payment clients
@@ -49,6 +50,27 @@ app.get('/health', async (c) => {
 
 // Routes
 app.route('/api', router);
+
+// Initialize promotion services
+try {
+  promotionDomain.startPromotionServices();
+  logger.info('Promotion services started successfully');
+} catch (error) {
+  logger.error('Failed to start promotion services', { error });
+}
+
+// Graceful shutdown handler
+process.on('SIGTERM', () => {
+  logger.info('SIGTERM received, shutting down gracefully');
+  promotionDomain.stopPromotionServices();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  logger.info('SIGINT received, shutting down gracefully');
+  promotionDomain.stopPromotionServices();
+  process.exit(0);
+});
 
 logger.info(`Server is running on port ${config.port}`);
 

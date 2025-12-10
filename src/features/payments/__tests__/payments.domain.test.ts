@@ -31,7 +31,7 @@ async function getOrderById(orderId: string) {
 }
 
 // Test data
-const TEST_ORDER_EMAIL = `payment-test-${Date.now()}@example.com`;
+const TEST_ORDER_EMAIL = `contact@theerakarnm.dev`;
 let testOrderId: string;
 let testPaymentId: string;
 

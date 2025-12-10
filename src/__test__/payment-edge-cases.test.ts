@@ -26,7 +26,7 @@ mock.module('../libs/auth', () => {
 // Import app AFTER mocking
 import { app } from '../index';
 
-const TEST_EMAIL = `payment-edge-${Date.now()}@example.com`;
+const TEST_EMAIL = `contact@theerakarnm.dev`;
 
 let testOrderId: string;
 let testPaymentId: string;

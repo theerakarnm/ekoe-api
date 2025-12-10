@@ -190,7 +190,7 @@ describe('Order Creation Property-Based Tests', () => {
 
           // Create order with discount code
           const orderRequest: CreateOrderRequest = {
-            email: `pbt-test-${Date.now()}@example.com`,
+            email: `contact@theerakarnm.dev`,
             items: [
               {
                 productId: testProductIds[orderSpec.productIndex],
@@ -292,7 +292,7 @@ describe('Order Creation Property-Based Tests', () => {
         async (orderSpec) => {
           // Create order without discount code to focus on gifts
           const orderRequest: CreateOrderRequest = {
-            email: `pbt-gift-test-${Date.now()}@example.com`,
+            email: `contact@theerakarnm.dev`,
             items: [
               {
                 productId: testProductIds[orderSpec.productIndex],
@@ -413,7 +413,7 @@ describe('Order Creation Property-Based Tests', () => {
         async (orderSpec) => {
           // Create order with specified shipping method
           const orderRequest: CreateOrderRequest = {
-            email: `pbt-shipping-test-${Date.now()}@example.com`,
+            email: `contact@theerakarnm.dev`,
             items: [
               {
                 productId: testProductIds[orderSpec.productIndex],
@@ -515,7 +515,7 @@ describe('Order Creation Property-Based Tests', () => {
         async (orderSpec) => {
           // Create order with complete addresses
           const orderRequest: CreateOrderRequest = {
-            email: `pbt-address-test-${Date.now()}@example.com`,
+            email: `contact@theerakarnm.dev`,
             items: [
               {
                 productId: testProductIds[orderSpec.productIndex],

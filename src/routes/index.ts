@@ -7,6 +7,7 @@ import analyticsRoutes from './analytics.routes';
 import paymentsRoutes from './payments.routes';
 import cartRoutes from './cart.routes';
 import { promotionalCart } from './promotional-cart.routes';
+import { promotions } from './promotions.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 import {
@@ -100,6 +101,7 @@ router.route('/customers', customersRoutes);
 router.route('/products', productsRoutes);
 router.route('/cart', cartRoutes);
 router.route('/cart/promotional', promotionalCart);
+router.route('/promotions', promotions);
 
 // Orders routes (includes both /orders and /admin/orders paths)
 router.route('/', ordersRoutes);

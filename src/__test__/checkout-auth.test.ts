@@ -18,7 +18,7 @@ import { db } from '../core/database';
 import { users, sessions, customerProfiles, customerAddresses } from '../core/database/schema';
 import { eq } from 'drizzle-orm';
 
-const TEST_USER_EMAIL = `checkout-test-${Date.now()}@example.com`;
+const TEST_USER_EMAIL = `contact@theerakarnm.dev`;
 const TEST_USER_PASSWORD = 'CheckoutTest123';
 const TEST_USER_NAME = 'Checkout Test User';
 const API_URL = process.env.BETTER_AUTH_URL || 'http://localhost:3000';

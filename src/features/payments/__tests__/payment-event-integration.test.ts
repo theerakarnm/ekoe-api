@@ -19,7 +19,7 @@ import { paymentsRepository } from '../payments.repository';
 import { ordersRepository } from '../../orders/orders.repository';
 
 // Test data
-const TEST_ORDER_EMAIL = `payment-event-test-${Date.now()}@example.com`;
+const TEST_ORDER_EMAIL = `contact@theerakarnm.dev`;
 let testOrderId: string;
 let testPaymentId: string;
 

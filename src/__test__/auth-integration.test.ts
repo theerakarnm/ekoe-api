@@ -20,7 +20,7 @@ import { users, sessions, customerProfiles } from '../core/database/schema';
 import { eq } from 'drizzle-orm';
 
 // Test configuration
-const TEST_USER_EMAIL = `test-${Date.now()}@example.com`;
+const TEST_USER_EMAIL = `contact@theerakarnm.dev`;
 const TEST_USER_PASSWORD = 'TestPass123';
 const TEST_USER_NAME = 'Test Customer';
 const API_URL = process.env.BETTER_AUTH_URL || 'http://localhost:3000';

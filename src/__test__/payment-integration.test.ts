@@ -22,7 +22,7 @@ import { payments, orders } from '../core/database/schema';
 import { eq } from 'drizzle-orm';
 
 const API_URL = process.env.BETTER_AUTH_URL || 'http://localhost:3000';
-const TEST_ORDER_EMAIL = `payment-integration-${Date.now()}@example.com`;
+const TEST_ORDER_EMAIL = `contact@theerakarnm.dev`;
 
 let testOrderId: string;
 let testPaymentId: string;
