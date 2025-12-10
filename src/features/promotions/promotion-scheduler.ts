@@ -452,10 +452,7 @@ export class PromotionScheduler {
       const hour = new Date().getHours();
       
       // Record the event in analytics
-      await promotionRepository.recordPromotionAnalytics({
-        promotionId,
-        date: today,
-        hour,
+      await promotionRepository.recordPromotionAnalytics(promotionId, {
         views: 0,
         applications: 0,
         totalDiscountAmount: 0,

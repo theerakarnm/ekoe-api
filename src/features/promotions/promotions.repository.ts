@@ -784,7 +784,7 @@ export class PromotionRepository {
       usageLimit: dbPromotion.usageLimit,
       usageLimitPerCustomer: dbPromotion.usageLimitPerCustomer,
       currentUsageCount: dbPromotion.currentUsageCount,
-      exclusiveWith: dbPromotion.exclusiveWith ? JSON.parse(dbPromotion.exclusiveWith) : undefined,
+      exclusiveWith: (dbPromotion.exclusiveWith && typeof dbPromotion.exclusiveWith === 'object') ? dbPromotion.exclusiveWith : (dbPromotion.exclusiveWith && typeof dbPromotion.exclusiveWith === 'string') ? JSON.parse(dbPromotion.exclusiveWith) : undefined,
       createdBy: dbPromotion.createdBy,
       createdAt: new Date(dbPromotion.createdAt),
       updatedAt: new Date(dbPromotion.updatedAt),

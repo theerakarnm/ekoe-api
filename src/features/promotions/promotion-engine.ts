@@ -1,4 +1,6 @@
 import { promotionRepository } from './promotions.repository';
+import { promotionSecurity } from './promotion-security';
+import { promotionAudit } from './promotion-audit';
 import { 
   ValidationError, 
   NotFoundError 
@@ -24,7 +26,17 @@ export class PromotionEngine {
   /**
    * Evaluate all active promotions for a cart and return the best applicable promotion
    */
-  async evaluatePromotions(context: PromotionEvaluationContext): Promise<PromotionEvaluationResult> {
+  async evaluatePromotions(
+    context: PromotionEvaluationContext,
+    requestMetadata?: {
+      ipAddress?: string;
+      userAgent?: string;
+      sessionId?: string;
+    }
+  ): Promise<PromotionEvaluationResult> {
+    // Validate promotion application request for security
+    await promotionSecurity.validatePromotionApplicationRequest(context, requestMetadata);
+
     // Validate evaluation context
     this.validateEvaluationContext(context);
 
@@ -62,6 +74,41 @@ export class PromotionEngine {
       eligiblePromotions,
       context
     );
+
+    // If a promotion was selected, validate it with security checks
+    if (selectedPromotion) {
+      const promotion = eligiblePromotions.find(p => p.promotion.id === selectedPromotion.promotionId)?.promotion;
+      if (promotion) {
+        await promotionSecurity.validatePromotionCalculations(context, selectedPromotion, promotion);
+        
+        // Log promotion application for audit
+        await promotionAudit.logPromotionApplied(
+          selectedPromotion,
+          context.customerId,
+          context.cartSubtotal,
+          {
+            ipAddress: requestMetadata?.ipAddress,
+            userAgent: requestMetadata?.userAgent,
+            sessionId: requestMetadata?.sessionId,
+            eligiblePromotionsCount: eligiblePromotions.length,
+            conflictResolution: conflictResolution?.conflictType
+          }
+        );
+
+        // Log high-value promotions separately
+        if (selectedPromotion.discountAmount > 500000) { // 5,000 THB
+          await promotionAudit.logHighValuePromotionApplied(
+            selectedPromotion.promotionId,
+            context.customerId,
+            selectedPromotion.discountAmount,
+            {
+              cartSubtotal: context.cartSubtotal,
+              promotionName: selectedPromotion.promotionName
+            }
+          );
+        }
+      }
+    }
 
     return {
       eligiblePromotions,

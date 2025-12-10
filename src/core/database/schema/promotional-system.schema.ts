@@ -1,7 +1,42 @@
-import { pgTable, varchar, text, integer, timestamp, boolean, jsonb, decimal, date, index } from "drizzle-orm/pg-core";
+import { pgTable, varchar, text, integer, timestamp, boolean, jsonb, decimal, date, index, pgEnum } from "drizzle-orm/pg-core";
 import { users } from "./auth-schema";
 import { orders, orderItems } from "./orders.schema";
 import { uuidv7 } from "uuidv7";
+
+// Enums for audit system
+export const auditEventTypeEnum = pgEnum('audit_event_type', [
+  'promotion_created',
+  'promotion_updated', 
+  'promotion_deleted',
+  'promotion_activated',
+  'promotion_deactivated',
+  'promotion_paused',
+  'promotion_resumed',
+  'promotion_applied',
+  'promotion_usage_recorded',
+  'rule_created',
+  'rule_updated',
+  'rule_deleted',
+  'security_violation',
+  'suspicious_activity',
+  'high_value_promotion_applied',
+  'usage_limit_exceeded',
+  'calculation_validation_failed'
+]);
+
+export const auditSeverityEnum = pgEnum('audit_severity', [
+  'info',
+  'warning', 
+  'error',
+  'critical'
+]);
+
+export const auditEntityTypeEnum = pgEnum('audit_entity_type', [
+  'promotion',
+  'promotion_rule',
+  'promotion_usage',
+  'security_event'
+]);
 
 // Main promotions table for the promotional system
 export const autoPromotions = pgTable("auto_promotions", {
@@ -129,4 +164,43 @@ export const autoPromotionAnalytics = pgTable("auto_promotion_analytics", {
   uniqueAnalytics: index("auto_promotion_analytics_unique_idx").on(table.promotionId, table.date, table.hour),
   dateAnalyticsIdx: index("auto_promotion_analytics_date_idx").on(table.date),
   promotionAnalyticsIdx: index("auto_promotion_analytics_promotion_idx").on(table.promotionId),
+}));
+
+// Promotion audit logs for security and compliance
+export const autoPromotionAuditLogs = pgTable("auto_promotion_audit_logs", {
+  id: varchar('id', { length: 36 }).$defaultFn(uuidv7).primaryKey(),
+  
+  // Event information
+  eventType: auditEventTypeEnum("event_type").notNull(),
+  promotionId: varchar("promotion_id", { length: 36 }).references(() => autoPromotions.id, { onDelete: "set null" }),
+  userId: varchar("user_id", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+  customerId: varchar("customer_id", { length: 36 }).references(() => users.id, { onDelete: "set null" }),
+  
+  // Entity information
+  entityType: auditEntityTypeEnum("entity_type").notNull(),
+  entityId: varchar("entity_id", { length: 36 }),
+  
+  // Change tracking
+  oldValues: jsonb("old_values"), // Previous values before change
+  newValues: jsonb("new_values"), // New values after change
+  metadata: jsonb("metadata"), // Additional context and information
+  
+  // Request context
+  ipAddress: varchar("ip_address", { length: 45 }), // IPv4 or IPv6
+  userAgent: text("user_agent"),
+  sessionId: varchar("session_id", { length: 128 }),
+  
+  // Audit metadata
+  timestamp: timestamp("timestamp").defaultNow().notNull(),
+  severity: auditSeverityEnum("severity").notNull().default('info'),
+}, (table) => ({
+  // Indexes for audit log queries
+  eventTypeIdx: index("auto_promotion_audit_logs_event_type_idx").on(table.eventType),
+  promotionAuditIdx: index("auto_promotion_audit_logs_promotion_idx").on(table.promotionId),
+  userAuditIdx: index("auto_promotion_audit_logs_user_idx").on(table.userId),
+  customerAuditIdx: index("auto_promotion_audit_logs_customer_idx").on(table.customerId),
+  timestampIdx: index("auto_promotion_audit_logs_timestamp_idx").on(table.timestamp),
+  severityIdx: index("auto_promotion_audit_logs_severity_idx").on(table.severity),
+  entityTypeIdx: index("auto_promotion_audit_logs_entity_type_idx").on(table.entityType),
+  entityAuditIdx: index("auto_promotion_audit_logs_entity_idx").on(table.entityType, table.entityId),
 }));

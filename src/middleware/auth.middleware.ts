@@ -61,6 +61,16 @@ export const optionalAuth = async (c: Context, next: Next) => {
   await next();
 };
 
+export const requireAuth  = async (c: Context, next: Next) => {
+  const user = c.get('user');
+
+  if (!user) {
+    throw new UnauthorizedError('Authentication required');
+  }
+  
+  await next();
+};
+
 /**
  * Middleware to require email verification
  * Must be used after requireCustomerAuth or requireAdminAuth

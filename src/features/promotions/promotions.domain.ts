@@ -2,6 +2,7 @@ import { promotionRepository } from './promotions.repository';
 import { promotionEngine } from './promotion-engine';
 import { promotionScheduler } from './promotion-scheduler';
 import { promotionMonitor } from './promotion-monitor';
+import { promotionAudit } from './promotion-audit';
 import { 
   ValidationError, 
   NotFoundError, 
@@ -45,13 +46,19 @@ export class PromotionDomain {
       promotion.status = status as any;
     }
 
+    // Log promotion creation for audit
+    await promotionAudit.logPromotionCreated(promotion, createdBy, {
+      initialStatus: status,
+      validationPassed: true
+    });
+
     return promotion;
   }
 
   /**
    * Update an existing promotion with validation
    */
-  async updatePromotion(id: string, data: Partial<UpdatePromotionDto>): Promise<Promotion> {
+  async updatePromotion(id: string, data: Partial<UpdatePromotionDto>, userId?: string): Promise<Promotion> {
     const existingPromotion = await promotionRepository.getPromotionById(id);
     if (!existingPromotion) {
       throw new NotFoundError('Promotion not found');
@@ -78,13 +85,37 @@ export class PromotionDomain {
     }
 
     // Update status if dates changed
+    let statusChanged = false;
     if (data.startsAt || data.endsAt) {
       const newStatus = this.determinePromotionStatus(updatedPromotion.startsAt, updatedPromotion.endsAt);
       if (newStatus !== updatedPromotion.status) {
+        const oldStatus = updatedPromotion.status;
         await promotionRepository.updatePromotionStatus(id, newStatus);
         updatedPromotion.status = newStatus as any;
+        statusChanged = true;
+
+        // Log status change
+        await promotionAudit.logPromotionStatusChange(
+          id,
+          oldStatus,
+          newStatus,
+          userId,
+          { reason: 'Date change triggered status update' }
+        );
       }
     }
+
+    // Log promotion update for audit
+    await promotionAudit.logPromotionUpdated(
+      id,
+      existingPromotion,
+      updatedPromotion,
+      userId,
+      {
+        statusChanged,
+        restrictedFieldsChanged: existingPromotion.status === 'active' && (data.type || data.startsAt)
+      }
+    );
 
     return updatedPromotion;
   }
@@ -92,7 +123,11 @@ export class PromotionDomain {
   /**
    * Add rules to a promotion
    */
-  async addPromotionRules(promotionId: string, rules: Omit<PromotionRule, 'id' | 'promotionId' | 'createdAt'>[]): Promise<PromotionRule[]> {
+  async addPromotionRules(
+    promotionId: string, 
+    rules: Omit<PromotionRule, 'id' | 'promotionId' | 'createdAt'>[],
+    userId?: string
+  ): Promise<PromotionRule[]> {
     const promotion = await promotionRepository.getPromotionById(promotionId);
     if (!promotion) {
       throw new NotFoundError('Promotion not found');
@@ -109,6 +144,12 @@ export class PromotionDomain {
         promotionId,
       });
       createdRules.push(createdRule);
+
+      // Log rule creation for audit
+      await promotionAudit.logPromotionRuleCreated(createdRule, userId, {
+        promotionName: promotion.name,
+        promotionStatus: promotion.status
+      });
     }
 
     return createdRules;
@@ -274,6 +315,20 @@ export class PromotionDomain {
       cartSubtotal,
       promotionSnapshot: promotion,
     });
+
+    // Log promotion usage recording for audit
+    await promotionAudit.logPromotionUsageRecorded(
+      promotionId,
+      orderId,
+      customerId,
+      discountAmount,
+      {
+        promotionName: promotion.name,
+        freeGiftCount: freeGifts.length,
+        cartSubtotal,
+        usageCountAfter: promotion.currentUsageCount + 1
+      }
+    );
   }
 
   /**

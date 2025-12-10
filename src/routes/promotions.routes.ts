@@ -21,7 +21,40 @@ const promotions = new Hono<{
   };
 }>();
 
-// Apply authentication middleware to all routes
+// === PUBLIC ENDPOINTS (No auth required) ===
+
+/**
+ * Get active promotions for public display
+ */
+promotions.get('/active', async (c) => {
+  try {
+    const activePromotions = await promotionRepository.getActivePromotions();
+
+    // Get detailed promotions with rules
+    const publicPromotions = await Promise.all(
+      activePromotions.map(async (promotion) => {
+        const detailedPromotion = await promotionRepository.getPromotionWithRules(promotion.id);
+        return {
+          id: promotion.id,
+          name: promotion.name,
+          description: promotion.description,
+          type: promotion.type,
+          startsAt: promotion.startsAt.toISOString(),
+          endsAt: promotion.endsAt.toISOString(),
+          priority: promotion.priority,
+          rules: detailedPromotion?.rules || []
+        };
+      })
+    );
+
+    return ResponseBuilder.success(c, publicPromotions);
+  } catch (error) {
+    logger.error({ error }, 'Failed to get active promotions');
+    return ResponseBuilder.error(c, 'Failed to get active promotions', 500);
+  }
+});
+
+// Apply authentication middleware to authenticated routes
 promotions.use('*', requireCustomerAuth);
 
 // === ADMIN MANAGEMENT ENDPOINTS ===
@@ -71,10 +104,10 @@ promotions.patch('/admin/bulk-status', requireAdminAuth, zValidator('json', z.ob
         const success = await promotionRepository.updatePromotionStatus(promotionId, status);
         results.push({ promotionId, success, error: null });
       } catch (error) {
-        results.push({ 
-          promotionId, 
-          success: false, 
-          error: (error as Error).message 
+        results.push({
+          promotionId,
+          success: false,
+          error: (error as Error).message
         });
       }
     }
@@ -175,7 +208,7 @@ promotions.post('/admin/:id/duplicate', requireAdminAuth, async (c) => {
 promotions.get('/admin/:id/conflicts', requireAdminAuth, async (c) => {
   try {
     const promotionId = c.req.param('id');
-    
+
     const promotion = await promotionRepository.getPromotionById(promotionId);
     if (!promotion) {
       return ResponseBuilder.error(c, 'Promotion not found', 404);
@@ -197,7 +230,7 @@ promotions.get('/admin/:id/conflicts', requireAdminAuth, async (c) => {
       if (hasTimeOverlap) {
         // Check for exclusivity conflicts
         const exclusivityConflicts = await promotionRepository.checkPromotionConflicts(
-          promotionId, 
+          promotionId,
           [activePromotion.id]
         );
 
@@ -314,6 +347,8 @@ promotions.post('/', requireAdminAuth, zValidator('json', createPromotionSchema)
 
     return ResponseBuilder.created(c, promotion);
   } catch (error) {
+    console.log(error);
+
     logger.error({ error }, 'Failed to create promotion');
     return ResponseBuilder.error(c, (error as Error).message || 'Failed to create promotion', 400);
   }
@@ -460,16 +495,16 @@ promotions.get('/:id/analytics', requireAdminAuth, async (c) => {
       totalRevenue: 0,
     });
 
-    const overallConversionRate = summary.totalViews > 0 
-      ? (summary.totalApplications / summary.totalViews) * 100 
+    const overallConversionRate = summary.totalViews > 0
+      ? (summary.totalApplications / summary.totalViews) * 100
       : 0;
 
-    const averageOrderValue = summary.totalOrders > 0 
-      ? summary.totalRevenue / summary.totalOrders 
+    const averageOrderValue = summary.totalOrders > 0
+      ? summary.totalRevenue / summary.totalOrders
       : 0;
 
-    const roi = summary.totalDiscountAmount > 0 
-      ? ((summary.totalRevenue - summary.totalDiscountAmount) / summary.totalDiscountAmount) * 100 
+    const roi = summary.totalDiscountAmount > 0
+      ? ((summary.totalRevenue - summary.totalDiscountAmount) / summary.totalDiscountAmount) * 100
       : 0;
 
     return ResponseBuilder.success(c, {
@@ -633,7 +668,7 @@ promotions.get('/analytics/overview', requireAdminAuth, async (c) => {
 
     // Get all promotions for the period
     const allPromotions = await promotionRepository.getPromotions({ limit: 1000 });
-    
+
     const systemMetrics = {
       totalPromotions: allPromotions.total,
       activePromotions: 0,
@@ -711,7 +746,7 @@ promotions.get('/analytics/overview', requireAdminAuth, async (c) => {
       systemMetrics: {
         ...systemMetrics,
         averageConversionRate: Math.round(systemMetrics.averageConversionRate * 100) / 100,
-        roi: systemMetrics.totalDiscountGiven > 0 
+        roi: systemMetrics.totalDiscountGiven > 0
           ? Math.round(((systemMetrics.totalRevenueGenerated - systemMetrics.totalDiscountGiven) / systemMetrics.totalDiscountGiven) * 100 * 100) / 100
           : 0
       },
