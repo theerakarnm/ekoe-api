@@ -13,6 +13,7 @@ COPY . .
 RUN bun add -d typescript
 
 RUN bun install
+RUN bun run clean
 RUN bun run build
 
 FROM base AS runner

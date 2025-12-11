@@ -4,7 +4,8 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "build": "bun build src/index.ts --outdir ./dist --target=bun --external mock-aws-s3 --external aws-sdk --external nock",
+    "clean": "rm -rf dist tsconfig.tsbuildinfo",
+    "build": "bun tsc --project ./tsconfig.json",
     "start": "bun src/index.ts",
     "test": "bun test",
     "test:auth": "bun test src/__test__/auth-integration.test.ts",

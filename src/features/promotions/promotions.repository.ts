@@ -461,6 +461,7 @@ export class PromotionRepository {
     name: string;
     status: string;
     availableQuantity: number;
+    inStock: boolean;
     imageUrl?: string;
   }>> {
     if (productIds.length === 0) return [];
@@ -484,6 +485,7 @@ export class PromotionRepository {
       name: product.name,
       status: product.status,
       availableQuantity: product.status === 'active' ? 1 : 0,
+      inStock: product.status === 'active',
       imageUrl: undefined,
     }));
   }

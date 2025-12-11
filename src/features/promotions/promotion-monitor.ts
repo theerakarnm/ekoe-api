@@ -27,13 +27,13 @@ export class PromotionMonitor {
 
     // Run initial monitoring check
     this.performMonitoringCheck().catch(error => {
-      logger.error('Error in initial promotion monitoring check', { error });
+      logger.error({ error }, 'Error in initial promotion monitoring check');
     });
 
     // Set up recurring monitoring
     this.monitoringInterval = setInterval(() => {
       this.performMonitoringCheck().catch(error => {
-        logger.error('Error in promotion monitoring', { error });
+        logger.error({ error }, 'Error in promotion monitoring');
       });
     }, this.MONITORING_INTERVAL_MS);
   }
@@ -48,12 +48,12 @@ export class PromotionMonitor {
     }
 
     logger.info('Stopping promotion monitor');
-    
+
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    
+
     this.isMonitoring = false;
     this.conflictCache.clear();
   }
@@ -83,15 +83,13 @@ export class PromotionMonitor {
       checks.forEach((result, index) => {
         if (result.status === 'rejected') {
           const checkNames = ['health', 'conflicts', 'usage limits', 'cleanup'];
-          logger.error(`Monitoring check failed: ${checkNames[index]}`, {
-            error: result.reason
-          });
+          logger.error({ error: result.reason }, `Monitoring check failed: ${checkNames[index]}`);
         }
       });
 
       logger.debug('Promotion monitoring check completed');
     } catch (error) {
-      logger.error('Error in performMonitoringCheck', { error });
+      logger.error({ error }, 'Error in performMonitoringCheck');
     }
   }
 
@@ -102,7 +100,7 @@ export class PromotionMonitor {
     try {
       const activePromotions = await promotionRepository.getActivePromotions();
       const now = new Date();
-      
+
       const healthMetrics = {
         totalActive: activePromotions.length,
         expiredButActive: 0,
@@ -114,45 +112,45 @@ export class PromotionMonitor {
         // Check for promotions that should be expired
         if (promotion.endsAt <= now) {
           healthMetrics.expiredButActive++;
-          logger.warn('Active promotion is past end date', {
+          logger.warn({
             promotionId: promotion.id,
             promotionName: promotion.name,
             endsAt: promotion.endsAt
-          });
+          }, 'Active promotion is past end date');
         }
 
         // Check for promotions that shouldn't be active yet
         if (promotion.startsAt > now) {
           healthMetrics.futureButActive++;
-          logger.warn('Active promotion is before start date', {
+          logger.warn({
             promotionId: promotion.id,
             promotionName: promotion.name,
             startsAt: promotion.startsAt
-          });
+          }, 'Active promotion is before start date');
         }
 
         // Check for promotions that have exceeded usage limits
         if (promotion.usageLimit && promotion.currentUsageCount >= promotion.usageLimit) {
           healthMetrics.usageLimitExceeded++;
-          logger.warn('Active promotion has exceeded usage limit', {
+          logger.warn({
             promotionId: promotion.id,
             promotionName: promotion.name,
             currentUsage: promotion.currentUsageCount,
             limit: promotion.usageLimit
-          });
+          }, 'Active promotion has exceeded usage limit');
         }
       }
 
       // Log health summary
-      if (healthMetrics.expiredButActive > 0 || 
-          healthMetrics.futureButActive > 0 || 
-          healthMetrics.usageLimitExceeded > 0) {
-        logger.warn('Promotion health issues detected', healthMetrics);
+      if (healthMetrics.expiredButActive > 0 ||
+        healthMetrics.futureButActive > 0 ||
+        healthMetrics.usageLimitExceeded > 0) {
+        logger.warn(healthMetrics, 'Promotion health issues detected');
       } else {
-        logger.debug('Promotion system health check passed', healthMetrics);
+        logger.debug(healthMetrics, 'Promotion system health check passed');
       }
     } catch (error) {
-      logger.error('Error in promotion health check', { error });
+      logger.error({ error }, 'Error in promotion health check');
       throw error;
     }
   }
@@ -172,17 +170,17 @@ export class PromotionMonitor {
       // Check for overlapping exclusive promotions
       for (let i = 0; i < activePromotions.length; i++) {
         const promotion1 = activePromotions[i];
-        
+
         if (!promotion1.exclusiveWith || promotion1.exclusiveWith.length === 0) {
           continue;
         }
 
         for (let j = i + 1; j < activePromotions.length; j++) {
           const promotion2 = activePromotions[j];
-          
+
           if (promotion1.exclusiveWith.includes(promotion2.id)) {
             const conflictKey = [promotion1.id, promotion2.id].sort().join('-');
-            
+
             // Check if we've already reported this conflict recently
             if (this.isConflictCached(conflictKey)) {
               continue;
@@ -220,10 +218,10 @@ export class PromotionMonitor {
             for (let j = i + 1; j < promotions.length; j++) {
               const p1 = promotions[i];
               const p2 = promotions[j];
-              
+
               if (this.doPeriodsOverlap(p1.startsAt, p1.endsAt, p2.startsAt, p2.endsAt)) {
                 const conflictKey = `priority-${[p1.id, p2.id].sort().join('-')}`;
-                
+
                 if (!this.isConflictCached(conflictKey)) {
                   conflicts.push({
                     type: 'priority_conflict',
@@ -234,7 +232,7 @@ export class PromotionMonitor {
                       promotion2: { id: p2.id, name: p2.name, period: [p2.startsAt, p2.endsAt] }
                     }
                   });
-                  
+
                   this.cacheConflict(conflictKey);
                 }
               }
@@ -245,15 +243,15 @@ export class PromotionMonitor {
 
       // Report conflicts
       if (conflicts.length > 0) {
-        logger.warn('Promotion conflicts detected', {
+        logger.warn({
           conflictCount: conflicts.length,
           conflicts
-        });
+        }, 'Promotion conflicts detected');
       } else {
         logger.debug('No promotion conflicts detected');
       }
     } catch (error) {
-      logger.error('Error in promotion conflict detection', { error });
+      logger.error({ error }, 'Error in promotion conflict detection');
       throw error;
     }
   }
@@ -275,7 +273,7 @@ export class PromotionMonitor {
         // Check total usage limit
         if (promotion.usageLimit) {
           const usagePercentage = (promotion.currentUsageCount / promotion.usageLimit) * 100;
-          
+
           if (usagePercentage >= 90) {
             usageWarnings.push({
               promotionId: promotion.id,
@@ -293,12 +291,12 @@ export class PromotionMonitor {
         // Get usage statistics for additional monitoring
         try {
           const stats = await promotionRepository.getPromotionUsageStats(promotion.id);
-          
+
           // Check for unusual usage patterns
           if (stats.totalUsage > 0) {
             const avgOrderValue = stats.totalRevenue / stats.totalUsage;
             const avgDiscount = stats.totalDiscount / stats.totalUsage;
-            
+
             // Flag if average discount is unusually high (>50% of order value)
             if (avgDiscount > (avgOrderValue * 0.5)) {
               usageWarnings.push({
@@ -313,25 +311,25 @@ export class PromotionMonitor {
               });
             }
           }
-        } catch (error) {
-          logger.debug('Could not get usage stats for promotion', {
+        } catch (error: any) {
+          logger.debug({
             promotionId: promotion.id,
             error: error.message
-          });
+          }, 'Could not get usage stats for promotion');
         }
       }
 
       // Report usage warnings
       if (usageWarnings.length > 0) {
-        logger.warn('Promotion usage warnings detected', {
+        logger.warn({
           warningCount: usageWarnings.length,
           warnings: usageWarnings
-        });
+        }, 'Promotion usage warnings detected');
       } else {
         logger.debug('No promotion usage warnings');
       }
     } catch (error) {
-      logger.error('Error in promotion usage monitoring', { error });
+      logger.error({ error }, 'Error in promotion usage monitoring');
       throw error;
     }
   }
@@ -344,7 +342,7 @@ export class PromotionMonitor {
       // Clean up conflict cache
       const now = new Date();
       let cleanedCount = 0;
-      
+
       for (const [key, timestamp] of this.conflictCache.entries()) {
         if (now.getTime() - timestamp.getTime() > this.CONFLICT_CACHE_TTL_MS) {
           this.conflictCache.delete(key);
@@ -353,16 +351,16 @@ export class PromotionMonitor {
       }
 
       if (cleanedCount > 0) {
-        logger.debug('Cleaned up expired conflict cache entries', { cleanedCount });
+        logger.debug({ cleanedCount }, 'Cleaned up expired conflict cache entries');
       }
 
       // Here you could add additional cleanup tasks such as:
       // - Archiving old analytics data
       // - Cleaning up temporary monitoring files
       // - Removing stale cache entries
-      
+
     } catch (error) {
-      logger.error('Error in cleanup expired data', { error });
+      logger.error({ error }, 'Error in cleanup expired data');
       throw error;
     }
   }
@@ -389,9 +387,9 @@ export class PromotionMonitor {
 
         const expectedStatus = this.determineExpectedStatus(fullPromotion.startsAt, fullPromotion.endsAt);
         const needsUpdate = fullPromotion.status !== expectedStatus;
-        
+
         let timeToNextChange: Date | undefined;
-        
+
         // Calculate when the next status change should occur
         if (fullPromotion.status === 'scheduled' && fullPromotion.startsAt > now) {
           timeToNextChange = fullPromotion.startsAt;
@@ -411,7 +409,7 @@ export class PromotionMonitor {
 
       return updates;
     } catch (error) {
-      logger.error('Error getting promotion status updates', { error });
+      logger.error({ error }, 'Error getting promotion status updates');
       throw error;
     }
   }
@@ -431,7 +429,7 @@ export class PromotionMonitor {
     try {
       const allPromotions = await promotionRepository.getPromotions({ limit: 1000 });
       const activePromotions = await promotionRepository.getActivePromotions();
-      
+
       const metrics = {
         totalPromotions: allPromotions.total,
         activePromotions: activePromotions.length,
@@ -479,7 +477,7 @@ export class PromotionMonitor {
 
       return metrics;
     } catch (error) {
-      logger.error('Error getting system health metrics', { error });
+      logger.error({ error }, 'Error getting system health metrics');
       throw error;
     }
   }
@@ -490,7 +488,7 @@ export class PromotionMonitor {
   private isConflictCached(conflictKey: string): boolean {
     const cachedTime = this.conflictCache.get(conflictKey);
     if (!cachedTime) return false;
-    
+
     const now = new Date();
     return (now.getTime() - cachedTime.getTime()) < this.CONFLICT_CACHE_TTL_MS;
   }
@@ -514,7 +512,7 @@ export class PromotionMonitor {
    */
   private determineExpectedStatus(startsAt: Date, endsAt: Date): PromotionStatus {
     const now = new Date();
-    
+
     if (now < startsAt) {
       return 'scheduled';
     } else if (now >= startsAt && now < endsAt) {

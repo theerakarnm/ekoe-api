@@ -99,10 +99,10 @@ export class PromotionalCartService {
   ): Promise<PromotionalCartItem[]> {
     const updatedItems: PromotionalCartItem[] = [...baseItems];
 
-    // Add free gifts as promotional items
-    for (const gift of freeGifts) {
+    // Add free gifts as promotional items (only those with valid productId)
+    for (const gift of freeGifts.filter(g => g.productId)) {
       const giftItem: PromotionalCartItem = {
-        productId: gift.productId,
+        productId: gift.productId!,
         variantId: gift.variantId,
         quantity: gift.quantity,
         isPromotionalGift: true,
@@ -132,7 +132,7 @@ export class PromotionalCartService {
 
     // Re-evaluate promotions with current base items
     const validatedCart = await cartDomain.validateCart(baseItems);
-    
+
     const evaluationContext: PromotionEvaluationContext = {
       cartItems: validatedCart.items.map(item => ({
         productId: item.productId,
@@ -150,7 +150,7 @@ export class PromotionalCartService {
 
     // Create a set of currently eligible gift product IDs
     const eligibleGiftProductIds = new Set(
-      promotionResult.freeGifts.map(gift => 
+      promotionResult.freeGifts.map(gift =>
         gift.variantId ? `${gift.productId}:${gift.variantId}` : gift.productId
       )
     );
@@ -241,10 +241,10 @@ export class PromotionalCartService {
       const validatedItems = await this.removeIneligiblePromotionalGifts(items, customerId);
 
       // Check if any promotional gifts were removed
-      const removedGifts = items.filter(item => 
-        this.isPromotionalGift(item) && 
-        !validatedItems.some(validItem => 
-          validItem.productId === item.productId && 
+      const removedGifts = items.filter(item =>
+        this.isPromotionalGift(item) &&
+        !validatedItems.some(validItem =>
+          validItem.productId === item.productId &&
           validItem.variantId === item.variantId
         )
       );
@@ -291,7 +291,7 @@ export class PromotionalCartService {
     for (const gift of promotionalGifts) {
       const promotionId = gift.sourcePromotionId || 'unknown';
       const giftValue = gift.giftValue || 0;
-      
+
       totalGiftValue += giftValue;
 
       if (!giftsByPromotion.has(promotionId)) {

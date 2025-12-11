@@ -56,7 +56,7 @@ try {
   promotionDomain.startPromotionServices();
   logger.info('Promotion services started successfully');
 } catch (error) {
-  logger.error('Failed to start promotion services', { error });
+  logger.error({ error }, 'Failed to start promotion services');
 }
 
 // Graceful shutdown handler

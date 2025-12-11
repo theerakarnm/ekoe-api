@@ -1,8 +1,8 @@
 import { promotionRepository } from './promotions.repository';
-import { 
-  ValidationError, 
+import {
+  ValidationError,
   UnauthorizedError,
-  ForbiddenError 
+  ForbiddenError
 } from '../../core/errors';
 import type {
   Promotion,
@@ -62,7 +62,7 @@ export class PromotionSecurity {
 
     } catch (error) {
       // Log suspicious activity for audit
-      await this.logSuspiciousActivity(context, appliedPromotion, promotion, error);
+      await this.logSuspiciousActivity(context, appliedPromotion, promotion, error as Error);
       throw error;
     }
   }
@@ -102,7 +102,7 @@ export class PromotionSecurity {
     for (const item of context.cartItems) {
       const expectedSubtotal = item.unitPrice * item.quantity;
       const itemDifference = Math.abs(expectedSubtotal - item.subtotal);
-      
+
       if (itemDifference > this.CALCULATION_TOLERANCE) {
         throw new ValidationError(
           `Item subtotal mismatch for product ${item.productId}. Expected: ${expectedSubtotal}, Got: ${item.subtotal}`
@@ -197,13 +197,13 @@ export class PromotionSecurity {
    */
   private calculateExpectedPercentageDiscount(benefit: any, context: PromotionEvaluationContext): number {
     const percentage = benefit.benefitValue || 0;
-    
+
     if (percentage < 0 || percentage > 100) {
       throw new ValidationError(`Invalid percentage value: ${percentage}`);
     }
 
     let applicableSubtotal = context.cartSubtotal;
-    
+
     // Apply to specific products if specified
     if (benefit.applicableProductIds && benefit.applicableProductIds.length > 0) {
       applicableSubtotal = context.cartItems
@@ -219,13 +219,13 @@ export class PromotionSecurity {
    */
   private calculateExpectedFixedDiscount(benefit: any, context: PromotionEvaluationContext): number {
     const fixedAmount = benefit.benefitValue || 0;
-    
+
     if (fixedAmount < 0) {
       throw new ValidationError(`Invalid fixed discount amount: ${fixedAmount}`);
     }
 
     let applicableSubtotal = context.cartSubtotal;
-    
+
     // Apply to specific products if specified
     if (benefit.applicableProductIds && benefit.applicableProductIds.length > 0) {
       applicableSubtotal = context.cartItems
@@ -415,10 +415,10 @@ export class PromotionSecurity {
   ): Promise<void> {
     // Check customer's promotion usage history
     const recentUsage = await this.getCustomerRecentPromotionUsage(customerId);
-    
+
     // Prevent excessive high-value promotion usage
     const recentHighValueUsage = recentUsage.filter(usage => usage.discountAmount > this.HIGH_VALUE_THRESHOLD);
-    
+
     if (recentHighValueUsage.length > 3) { // More than 3 high-value promotions recently
       throw new ValidationError(
         `Customer ${customerId} has exceeded high-value promotion usage limits`
@@ -428,7 +428,7 @@ export class PromotionSecurity {
     // Check for suspicious patterns (e.g., multiple high-value promotions in short time)
     const last24Hours = new Date(Date.now() - 24 * 60 * 60 * 1000);
     const recent24HourUsage = recentUsage.filter(usage => usage.createdAt > last24Hours);
-    
+
     if (recent24HourUsage.length > 5) {
       throw new ValidationError(
         `Suspicious promotion usage pattern detected for customer ${customerId}`
@@ -466,7 +466,7 @@ export class PromotionSecurity {
         promotion.id,
         customerId
       );
-      
+
       if (customerUsage >= promotion.usageLimitPerCustomer) {
         throw new PromotionUsageLimitError(
           `Customer usage limit exceeded: ${customerUsage}/${promotion.usageLimitPerCustomer}`,
@@ -636,7 +636,7 @@ export class PromotionSecurity {
   private async validateCartTampering(context: PromotionEvaluationContext): Promise<void> {
     // Check for unrealistic cart values
     const averageItemPrice = context.cartSubtotal / context.cartItems.length;
-    
+
     if (averageItemPrice > 5000000) { // 50,000 THB average per item
       throw new ValidationError('Unrealistic cart values detected - possible tampering');
     }

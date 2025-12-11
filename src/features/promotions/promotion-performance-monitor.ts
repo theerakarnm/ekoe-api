@@ -62,12 +62,12 @@ export class PromotionPerformanceMonitor {
   private alerts: PerformanceAlert[] = [];
   private isMonitoring = false;
   private monitoringInterval: NodeJS.Timeout | null = null;
-  
+
   // Configuration
   private readonly MAX_METRICS_HISTORY = 1000;
   private readonly MONITORING_INTERVAL_MS = 30000; // 30 seconds
   private readonly ALERT_COOLDOWN_MS = 300000; // 5 minutes
-  
+
   // Performance thresholds
   private thresholds: PerformanceThresholds = {
     evaluationTimeWarning: 1000, // 1 second
@@ -116,12 +116,12 @@ export class PromotionPerformanceMonitor {
     }
 
     logger.info('Stopping promotion performance monitor');
-    
+
     if (this.monitoringInterval) {
       clearInterval(this.monitoringInterval);
       this.monitoringInterval = null;
     }
-    
+
     this.isMonitoring = false;
   }
 
@@ -137,7 +137,7 @@ export class PromotionPerformanceMonitor {
   ): void {
     this.evaluationCount++;
     this.totalEvaluationTime += evaluationTime;
-    
+
     if (hasError) {
       this.errorCount++;
     }
@@ -155,7 +155,7 @@ export class PromotionPerformanceMonitor {
     };
 
     this.metrics.push(metrics);
-    
+
     // Keep only recent metrics
     if (this.metrics.length > this.MAX_METRICS_HISTORY) {
       this.metrics = this.metrics.slice(-this.MAX_METRICS_HISTORY);
@@ -180,13 +180,13 @@ export class PromotionPerformanceMonitor {
     recentMetrics: PerformanceMetrics[];
   } {
     const recentMetrics = this.getRecentMetrics(300000); // Last 5 minutes
-    const averageEvaluationTime = this.evaluationCount > 0 ? 
+    const averageEvaluationTime = this.evaluationCount > 0 ?
       this.totalEvaluationTime / this.evaluationCount : 0;
-    
-    const errorRate = this.evaluationCount > 0 ? 
+
+    const errorRate = this.evaluationCount > 0 ?
       (this.errorCount / this.evaluationCount) * 100 : 0;
-    
-    const throughput = recentMetrics.length > 0 ? 
+
+    const throughput = recentMetrics.length > 0 ?
       (recentMetrics.length / 5) : 0; // per minute over 5 minutes
 
     return {
@@ -281,7 +281,7 @@ export class PromotionPerformanceMonitor {
    */
   updateThresholds(newThresholds: Partial<PerformanceThresholds>): void {
     this.thresholds = { ...this.thresholds, ...newThresholds };
-    logger.info('Performance thresholds updated', newThresholds);
+    logger.info(newThresholds, 'Performance thresholds updated');
   }
 
   /**
@@ -366,8 +366,8 @@ export class PromotionPerformanceMonitor {
     }
 
     return recommendations.sort((a, b) => {
-      const priorityOrder = { high: 3, medium: 2, low: 1 };
-      return priorityOrder[b.priority] - priorityOrder[a.priority];
+      const priorityOrder: Record<string, number> = { high: 3, medium: 2, low: 1 };
+      return (priorityOrder[b.priority] || 0) - (priorityOrder[a.priority] || 0);
     });
   }
 
@@ -379,18 +379,18 @@ export class PromotionPerformanceMonitor {
       overallHealth: 'excellent' | 'good' | 'warning' | 'critical';
       keyMetrics: Record<string, any>;
     };
-    trends: ReturnType<typeof this.getPerformanceTrends>;
+    trends: ReturnType<PromotionPerformanceMonitor['getPerformanceTrends']>;
     alerts: PerformanceAlert[];
-    recommendations: ReturnType<typeof this.getPerformanceRecommendations>;
+    recommendations: ReturnType<PromotionPerformanceMonitor['getPerformanceRecommendations']>;
     cacheAnalysis: ReturnType<typeof promotionCache.getPerformanceMetrics>;
   } {
     const stats = this.getPerformanceStats();
     const activeAlerts = this.getActiveAlerts();
     const criticalAlerts = activeAlerts.filter(a => a.type === 'critical');
-    
+
     // Determine overall health
     let overallHealth: 'excellent' | 'good' | 'warning' | 'critical' = 'excellent';
-    
+
     if (criticalAlerts.length > 0) {
       overallHealth = 'critical';
     } else if (activeAlerts.length > 0) {
@@ -427,7 +427,7 @@ export class PromotionPerformanceMonitor {
   private collectMetrics(): void {
     const memoryUsage = process.memoryUsage().heapUsed;
     const cacheHitRate = this.getCacheHitRate();
-    
+
     // Create a synthetic metric for monitoring
     const metrics: PerformanceMetrics = {
       timestamp: Date.now(),
@@ -441,10 +441,10 @@ export class PromotionPerformanceMonitor {
     };
 
     // Don't add to metrics array as this is just for monitoring
-    logger.debug('Performance metrics collected', {
+    logger.debug({
       memoryUsage: Math.round(memoryUsage / 1024 / 1024) + 'MB',
       cacheHitRate: cacheHitRate + '%',
-    });
+    }, 'Performance metrics collected');
   }
 
   /**
@@ -456,37 +456,37 @@ export class PromotionPerformanceMonitor {
 
     // Check evaluation time
     if (stats.averageEvaluationTime > this.thresholds.evaluationTimeCritical) {
-      this.createAlert('critical', 'evaluationTime', this.thresholds.evaluationTimeCritical, 
+      this.createAlert('critical', 'evaluationTime', this.thresholds.evaluationTimeCritical,
         stats.averageEvaluationTime, 'Critical: Promotion evaluation time is too high');
     } else if (stats.averageEvaluationTime > this.thresholds.evaluationTimeWarning) {
-      this.createAlert('warning', 'evaluationTime', this.thresholds.evaluationTimeWarning, 
+      this.createAlert('warning', 'evaluationTime', this.thresholds.evaluationTimeWarning,
         stats.averageEvaluationTime, 'Warning: Promotion evaluation time is elevated');
     }
 
     // Check memory usage
     if (stats.currentMemoryUsage > this.thresholds.memoryUsageCritical) {
-      this.createAlert('critical', 'memoryUsage', this.thresholds.memoryUsageCritical, 
+      this.createAlert('critical', 'memoryUsage', this.thresholds.memoryUsageCritical,
         stats.currentMemoryUsage, 'Critical: Memory usage is too high');
     } else if (stats.currentMemoryUsage > this.thresholds.memoryUsageWarning) {
-      this.createAlert('warning', 'memoryUsage', this.thresholds.memoryUsageWarning, 
+      this.createAlert('warning', 'memoryUsage', this.thresholds.memoryUsageWarning,
         stats.currentMemoryUsage, 'Warning: Memory usage is elevated');
     }
 
     // Check cache hit rate
     if (stats.cacheHitRate < this.thresholds.cacheHitRateCritical) {
-      this.createAlert('critical', 'cacheHitRate', this.thresholds.cacheHitRateCritical, 
+      this.createAlert('critical', 'cacheHitRate', this.thresholds.cacheHitRateCritical,
         stats.cacheHitRate, 'Critical: Cache hit rate is too low');
     } else if (stats.cacheHitRate < this.thresholds.cacheHitRateWarning) {
-      this.createAlert('warning', 'cacheHitRate', this.thresholds.cacheHitRateWarning, 
+      this.createAlert('warning', 'cacheHitRate', this.thresholds.cacheHitRateWarning,
         stats.cacheHitRate, 'Warning: Cache hit rate is low');
     }
 
     // Check error rate
     if (stats.errorRate > this.thresholds.errorRateCritical) {
-      this.createAlert('critical', 'errorRate', this.thresholds.errorRateCritical, 
+      this.createAlert('critical', 'errorRate', this.thresholds.errorRateCritical,
         stats.errorRate, 'Critical: Error rate is too high');
     } else if (stats.errorRate > this.thresholds.errorRateWarning) {
-      this.createAlert('warning', 'errorRate', this.thresholds.errorRateWarning, 
+      this.createAlert('warning', 'errorRate', this.thresholds.errorRateWarning,
         stats.errorRate, 'Warning: Error rate is elevated');
     }
   }
@@ -526,12 +526,12 @@ export class PromotionPerformanceMonitor {
 
     // Log the alert
     const logLevel = type === 'critical' ? 'error' : 'warn';
-    logger[logLevel](`Performance alert: ${message}`, {
+    (logger[logLevel] as typeof logger.error)({
       metric,
       threshold,
       currentValue,
       alertId: alert.id,
-    });
+    }, `Performance alert: ${message}`);
 
     // Keep only recent alerts
     if (this.alerts.length > 100) {
@@ -565,7 +565,7 @@ export class PromotionPerformanceMonitor {
     this.metrics = this.metrics.filter(m => m.timestamp >= cutoffTime);
 
     // Clean old resolved alerts
-    this.alerts = this.alerts.filter(a => 
+    this.alerts = this.alerts.filter(a =>
       !a.resolved || a.timestamp >= cutoffTime
     );
 
