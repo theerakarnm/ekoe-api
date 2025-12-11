@@ -1,5 +1,5 @@
 import { db } from '../../core/database';
-import { products, productVariants, productImages, productCategories, productTags, categories, productSets, productBenefits } from '../../core/database/schema/products.schema';
+import { products, productVariants, productImages, productCategories, productTags, categories, productSets, productBenefits, tags } from '../../core/database/schema/products.schema';
 import { orderItems } from '../../core/database/schema/orders.schema';
 import { eq, ilike, and, sql, desc, asc, isNull, or, inArray, gte, lte, count } from 'drizzle-orm';
 import { NotFoundError, ValidationError } from '../../core/errors';
@@ -147,13 +147,152 @@ export class ProductsRepository {
       .where(eq(productImages.productId, id))
       .orderBy(asc(productImages.sortOrder));
 
+    // Get set items with full product details
+    const setItemsRaw = await db.select().from(productSets).where(eq(productSets.setProductId, id)).orderBy(asc(productSets.sortOrder));
+
+    let setItems: {
+      productId: string;
+      name: string;
+      description: string | null;
+      subtitle: string | null;
+      image: string | null;
+      quantity: number | null;
+    }[] = [];
+
+    if (setItemsRaw.length > 0) {
+      const includedProductIds = setItemsRaw.map(item => item.includedProductId);
+
+      // Fetch included products
+      const includedProducts = await db
+        .select({
+          id: products.id,
+          name: products.name,
+          description: products.shortDescription,
+          subtitle: products.subtitle,
+        })
+        .from(products)
+        .where(inArray(products.id, includedProductIds));
+
+      // Fetch primary images for all included products
+      const includedImages = await db
+        .select({
+          productId: productImages.productId,
+          url: productImages.url,
+        })
+        .from(productImages)
+        .where(
+          and(
+            inArray(productImages.productId, includedProductIds),
+            eq(productImages.isPrimary, true)
+          )
+        );
+
+      // Create lookup maps
+      const productMap = new Map(includedProducts.map(p => [p.id, p]));
+      const imageMap = new Map(includedImages.map(img => [img.productId, img.url]));
+
+      // Map set items with full product details
+      setItems = setItemsRaw.map(item => {
+        const product = productMap.get(item.includedProductId);
+        return {
+          productId: item.includedProductId,
+          name: product?.name || '',
+          description: product?.description || null,
+          subtitle: product?.subtitle || null,
+          image: imageMap.get(item.includedProductId) || null,
+          quantity: item.quantity,
+        };
+      });
+    }
+
     return {
       ...result[0],
       variants,
       groupedVariants,
       images,
-      setItems: await db.select().from(productSets).where(eq(productSets.setProductId, id)).orderBy(asc(productSets.sortOrder)),
+      setItems,
       benefits: (await db.select().from(productBenefits).where(eq(productBenefits.productId, id)).orderBy(asc(productBenefits.sortOrder))).map(b => b.benefit),
+      tags: (await db
+        .select({
+          id: tags.id,
+          name: tags.name,
+          slug: tags.slug,
+          description: tags.description,
+        })
+        .from(productTags)
+        .innerJoin(tags, eq(productTags.tagId, tags.id))
+        .where(eq(productTags.productId, id))),
+    };
+  }
+
+  // Helper to handle tags
+  private async handleTags(productId: string, tagNames: string[]) {
+    if (!tagNames) return;
+
+    // 1. Get all current tags for the product
+    await db.delete(productTags).where(eq(productTags.productId, productId));
+
+    if (tagNames.length === 0) return;
+
+    // 2. Process each tag
+    const tagIds: string[] = [];
+
+    for (const tagName of tagNames) {
+      const slug = tagName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+      // Check if tag exists by slug or name
+      const existingTag = await db
+        .select()
+        .from(tags)
+        .where(or(eq(tags.slug, slug), eq(tags.name, tagName)))
+        .limit(1);
+
+      if (existingTag.length > 0) {
+        tagIds.push(existingTag[0].id);
+      } else {
+        // Create new tag
+        const newTag = await db.insert(tags).values({
+          name: tagName,
+          slug: slug,
+        }).returning();
+        tagIds.push(newTag[0].id);
+      }
+    }
+
+    // 3. Link tags to product
+    // remove duplicates
+    const uniqueTagIds = [...new Set(tagIds)];
+
+    if (uniqueTagIds.length > 0) {
+      await db.insert(productTags).values(
+        uniqueTagIds.map(tagId => ({
+          productId,
+          tagId,
+        }))
+      );
+    }
+  }
+
+  async getCategories() {
+    return await db.select().from(categories).where(eq(categories.isActive, true)).orderBy(asc(categories.sortOrder));
+  }
+
+  async getTags() {
+    return await db.select().from(tags).orderBy(asc(tags.name));
+  }
+
+  async getPriceRange() {
+    const result = await db
+      .select({
+        min: sql<number>`min(${products.basePrice})`,
+        max: sql<number>`max(${products.basePrice})`,
+      })
+      .from(products)
+      .where(and(isNull(products.deletedAt), eq(products.status, 'active')));
+
+    return {
+      min: Number(result[0]?.min || 0),
+      max: Number(result[0]?.max || 0),
     };
   }
 
@@ -191,6 +330,11 @@ export class ProductsRepository {
           sortOrder: index,
         }))
       );
+    }
+
+    // Handle tags
+    if (data.tags) {
+      await this.handleTags(productId, data.tags);
     }
 
     return result[0];
@@ -250,6 +394,11 @@ export class ProductsRepository {
           }))
         );
       }
+    }
+
+    // Handle tags
+    if (data.tags !== undefined) {
+      await this.handleTags(id, data.tags);
     }
 
     return result[0];
@@ -869,39 +1018,7 @@ export class ProductsRepository {
     };
   }
 
-  /**
-   * Get all available product categories
-   */
-  async getCategories(): Promise<Category[]> {
-    return db
-      .select()
-      .from(categories)
-      .where(eq(categories.isActive, true))
-      .orderBy(asc(categories.name));
-  }
 
-  /**
-   * Get min and max prices for price range filter
-   */
-  async getPriceRange(): Promise<PriceRange> {
-    const result = await db
-      .select({
-        min: sql<number>`MIN(${products.basePrice})`,
-        max: sql<number>`MAX(${products.basePrice})`
-      })
-      .from(products)
-      .where(
-        and(
-          isNull(products.deletedAt),
-          eq(products.status, 'active')
-        )
-      );
-
-    return {
-      min: result[0]?.min || 0,
-      max: result[0]?.max || 0
-    };
-  }
 }
 
 export const productsRepository = new ProductsRepository();

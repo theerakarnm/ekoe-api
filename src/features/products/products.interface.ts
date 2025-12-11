@@ -54,6 +54,7 @@ export const createProductSchema = z.object({
   }).optional(),
   goodFor: z.string().optional(),
   whyItWorks: z.string().optional(),
+  tags: z.array(z.string()).optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

@@ -22,6 +22,12 @@ const adminRoutes = new Hono<{
   }
 }>();
 
+// Get all tags
+adminRoutes.get('/tags', requireAdminAuth, async (c) => {
+  const tags = await productsDomain.getAllTags();
+  return ResponseBuilder.success(c, tags);
+});
+
 // Dashboard metrics endpoint
 adminRoutes.get('/dashboard/metrics', requireAdminAuth, async (c) => {
   const metrics = await dashboardDomain.getMetrics();

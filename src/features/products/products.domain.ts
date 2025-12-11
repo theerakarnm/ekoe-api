@@ -305,6 +305,10 @@ export class ProductsDomain {
     }
   }
 
+  async getAllTags() {
+    return await productsRepository.getTags();
+  }
+
   /**
    * Get price range for filter UI
    */
