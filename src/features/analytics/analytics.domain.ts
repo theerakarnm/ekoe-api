@@ -15,13 +15,13 @@ export class AnalyticsDomain {
     const endDate = new Date();
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - 30);
-    
+
     return {
       startDate: startDate.toISOString(),
       endDate: endDate.toISOString(),
     };
   }
-  
+
   /**
    * Format revenue metrics
    */
@@ -39,7 +39,7 @@ export class AnalyticsDomain {
       })),
     };
   }
-  
+
   /**
    * Format order statistics
    */
@@ -54,7 +54,7 @@ export class AnalyticsDomain {
       byStatus: data.byStatus,
     };
   }
-  
+
   /**
    * Format customer metrics
    */
@@ -71,7 +71,7 @@ export class AnalyticsDomain {
       growth: Math.round(data.growth * 100) / 100, // Round to 2 decimal places
     };
   }
-  
+
   /**
    * Get revenue metrics
    */
@@ -80,7 +80,7 @@ export class AnalyticsDomain {
     const data = await analyticsRepository.getRevenueMetrics(dateRange);
     return this.formatRevenueMetrics(data);
   }
-  
+
   /**
    * Get order statistics
    */
@@ -89,7 +89,7 @@ export class AnalyticsDomain {
     const data = await analyticsRepository.getOrderStatistics(dateRange);
     return this.formatOrderStatistics(data);
   }
-  
+
   /**
    * Get customer metrics
    */
@@ -98,26 +98,29 @@ export class AnalyticsDomain {
     const data = await analyticsRepository.getCustomerMetrics(dateRange);
     return this.formatCustomerMetrics(data);
   }
-  
+
   /**
    * Get combined dashboard metrics
    */
   async getDashboardMetrics(params?: DateRangeParams): Promise<DashboardMetrics> {
     const dateRange = params || this.getDefaultDateRange();
-    
+
     // Fetch all metrics in parallel
-    const [revenue, orders, customers] = await Promise.all([
+    const [revenue, orders, customers, topProducts] = await Promise.all([
       this.getRevenueMetrics(dateRange),
       this.getOrderStatistics(dateRange),
       this.getCustomerMetrics(dateRange),
+      analyticsRepository.getTopProducts(dateRange, 5),
     ]);
-    
+
     return {
       revenue,
       orders,
       customers,
+      topProducts,
     };
   }
 }
 
 export const analyticsDomain = new AnalyticsDomain();
+

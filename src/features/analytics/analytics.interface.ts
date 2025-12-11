@@ -37,9 +37,20 @@ export interface CustomerMetrics {
   growth: number; // Growth percentage
 }
 
+// Top product metrics response
+export interface TopProductMetric {
+  id: string;
+  name: string;
+  soldCount: number;
+  revenue: number;
+  imageUrl?: string;
+}
+
 // Combined dashboard metrics
 export interface DashboardMetrics {
   revenue: RevenueMetrics;
   orders: OrderStatistics;
   customers: CustomerMetrics;
+  topProducts?: TopProductMetric[];
 }
+
