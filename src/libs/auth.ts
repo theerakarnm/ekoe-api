@@ -72,7 +72,7 @@ export const auth = betterAuth({
   plugins: [
     admin()
   ],
-  trustedOrigins: [config.web.url],
+  trustedOrigins: [config.web.url, 'https://qas-ekoe.theerakarnm.dev'],
   secret: config.auth.secret,
   baseURL: config.auth.url,
   session: {
@@ -111,7 +111,7 @@ export const auth = betterAuth({
       path: '/',
 
       // Domain - set explicitly in production for subdomain support
-      // domain: config.env === 'production' ? '.yourdomain.com' : undefined,
+      domain: config.auth.cookieDomain,
     },
     useSecureCookies: config.env === 'production', // Use secure cookies in production
     generateId: undefined, // Use default ID generation

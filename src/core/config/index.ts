@@ -6,6 +6,7 @@ export const config = {
   auth: {
     secret: process.env.BETTER_AUTH_SECRET || 'default-secret',
     url: process.env.BETTER_AUTH_URL || 'http://localhost:3000',
+    cookieDomain: process.env.COOKIE_DOMAIN || undefined, // e.g., '.theerakarnm.dev' for subdomain support
   },
   google: {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
