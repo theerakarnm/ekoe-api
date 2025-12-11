@@ -17,28 +17,28 @@ export interface ShippingMethod {
 export const SHIPPING_METHODS: ShippingMethod[] = [
   {
     id: 'standard',
-    name: 'Standard Shipping',
-    description: 'Delivery within 5-7 business days',
-    cost: 5000, // 50 THB
-    estimatedDays: 7,
-    carrier: 'Thailand Post',
-  },
-  {
-    id: 'express',
     name: 'Express Shipping',
-    description: 'Delivery within 2-3 business days',
-    cost: 10000, // 100 THB
+    description: 'Delivery within 3-5 business days',
+    cost: 0,
     estimatedDays: 3,
-    carrier: 'Kerry Express',
+    carrier: '-',
   },
-  {
-    id: 'next-day',
-    name: 'Next Day Delivery',
-    description: 'Delivery by next business day',
-    cost: 15000, // 150 THB
-    estimatedDays: 1,
-    carrier: 'Flash Express',
-  },
+  // {
+  //   id: 'express',
+  //   name: 'Express Shipping',
+  //   description: 'Delivery within 2-3 business days',
+  //   cost: 0, // 100 THB
+  //   estimatedDays: 3,
+  //   carrier: 'Kerry Express',
+  // },
+  // {
+  //   id: 'next-day',
+  //   name: 'Next Day Delivery',
+  //   description: 'Delivery by next business day',
+  //   cost: 15000, // 150 THB
+  //   estimatedDays: 1,
+  //   carrier: 'Flash Express',
+  // },
 ];
 
 /**
