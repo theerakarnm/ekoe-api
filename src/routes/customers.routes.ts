@@ -164,4 +164,51 @@ customersRoutes.post('/me/resend-verification', async (c) => {
   }
 });
 
+// Wishlist endpoints
+customersRoutes.get('/me/wishlist', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const wishlist = await customersDomain.getWishlist(user.id);
+  return ResponseBuilder.success(c, wishlist);
+});
+
+customersRoutes.post('/me/wishlist', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const { productId } = await c.req.json();
+  if (!productId) {
+    return ResponseBuilder.error(c, 'Product ID is required', 400, 'VALIDATION_ERROR');
+  }
+
+  const result = await customersDomain.addToWishlist(user.id, productId);
+  return ResponseBuilder.created(c, result);
+});
+
+customersRoutes.delete('/me/wishlist/:productId', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  const productId = c.req.param('productId');
+  await customersDomain.removeFromWishlist(user.id, productId);
+  return ResponseBuilder.noContent(c);
+});
+
+customersRoutes.delete('/me/wishlist', async (c) => {
+  const user = c.get('user');
+  if (!user) {
+    return ResponseBuilder.error(c, 'User not found in context', 401, 'AUTH_UNAUTHORIZED');
+  }
+
+  await customersDomain.clearWishlist(user.id);
+  return ResponseBuilder.noContent(c);
+});
+
 export default customersRoutes;

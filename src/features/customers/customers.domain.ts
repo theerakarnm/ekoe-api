@@ -1,4 +1,5 @@
 import { customersRepository } from './customers.repository';
+import { wishlistsRepository } from './wishlists.repository';
 import {
   CreateCustomerProfileDto,
   UpdateCustomerProfileDto,
@@ -99,6 +100,34 @@ export class CustomersDomain {
     }
 
     return profile;
+  }
+
+  /**
+   * Add product to wishlist
+   */
+  async addToWishlist(userId: string, productId: string) {
+    return wishlistsRepository.addToWishlist(userId, productId);
+  }
+
+  /**
+   * Remove product from wishlist
+   */
+  async removeFromWishlist(userId: string, productId: string) {
+    return wishlistsRepository.removeFromWishlist(userId, productId);
+  }
+
+  /**
+   * Get user's wishlist
+   */
+  async getWishlist(userId: string) {
+    return wishlistsRepository.getWishlist(userId);
+  }
+
+  /**
+   * Clear user's wishlist
+   */
+  async clearWishlist(userId: string) {
+    return wishlistsRepository.clearWishlist(userId);
   }
 }
 

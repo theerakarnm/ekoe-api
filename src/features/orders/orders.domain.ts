@@ -181,6 +181,20 @@ export class OrdersDomain {
       const itemSubtotal = unitPrice * item.quantity;
       subtotal += itemSubtotal;
 
+      logger.info(
+        {
+          productId: item.productId,
+          variantId: item.variantId,
+          productName: product.name,
+          productBasePrice: product.basePrice,
+          variantPrice: item.variantId ? unitPrice : 'N/A (no variant)',
+          unitPriceUsed: unitPrice,
+          quantity: item.quantity,
+          itemSubtotal,
+        },
+        'Order pricing calculation - item details'
+      );
+
       processedItems.push({
         productId: item.productId,
         variantId: item.variantId,

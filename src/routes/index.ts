@@ -30,7 +30,7 @@ router.use(
   "/auth/*", // or replace with "*" to enable cors for all routes
   cors({
     origin: ['http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev'], // replace with your origin
-    allowHeaders: ["Content-Type", "Authorization"],
+    allowHeaders: ["Content-Type", "Authorization", "User-Agent", "Accept", "Origin", "X-Requested-With"],
     allowMethods: ["POST", "GET", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
