@@ -47,6 +47,13 @@ export type CalculateCartRequest = z.infer<typeof calculateCartSchema>;
 export type ValidateDiscountRequest = z.infer<typeof validateDiscountSchema>;
 
 // Response types
+export interface ComplimentaryGiftInfo {
+  name: string;
+  description: string;
+  image: string;
+  value: number;
+}
+
 export interface ValidatedCartItem {
   productId: string;
   variantId?: string;
@@ -59,6 +66,7 @@ export interface ValidatedCartItem {
   availableQuantity: number;
   sku?: string;
   image?: string;
+  complimentaryGift?: ComplimentaryGiftInfo;
 }
 
 export interface CartValidationError {

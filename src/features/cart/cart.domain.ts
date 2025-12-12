@@ -112,6 +112,20 @@ export class CartDomain {
       const itemSubtotal = unitPrice * item.quantity;
       subtotal += itemSubtotal;
 
+      // Extract complimentary gift info from product
+      let complimentaryGift: { name: string; description: string; image: string; value: number } | undefined;
+      if (product.complimentaryGift && typeof product.complimentaryGift === 'object') {
+        const gift = product.complimentaryGift as { name?: string; description?: string; image?: string; value?: number };
+        if (gift.name) {
+          complimentaryGift = {
+            name: gift.name,
+            description: gift.description || '',
+            image: gift.image || '',
+            value: gift.value || 0,
+          };
+        }
+      }
+
       validatedItems.push({
         productId: item.productId,
         variantId: item.variantId,
@@ -124,6 +138,7 @@ export class CartDomain {
         availableQuantity,
         sku,
         image: undefined, // Images are fetched separately if needed
+        complimentaryGift,
       });
     }
 

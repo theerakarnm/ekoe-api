@@ -23,6 +23,7 @@ export interface RevenueMetrics {
 export interface OrderStatistics {
   total: number; // Total number of orders
   averageValue: number; // Average order value in cents
+  growth: number; // Growth percentage compared to previous period
   byStatus: Array<{
     status: string;
     count: number;

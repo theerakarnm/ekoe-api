@@ -46,11 +46,13 @@ export class AnalyticsDomain {
   private formatOrderStatistics(data: {
     total: number;
     averageValue: number;
+    growth: number;
     byStatus: Array<{ status: string; count: number }>;
   }): OrderStatistics {
     return {
       total: data.total,
       averageValue: data.averageValue,
+      growth: Math.round(data.growth * 100) / 100, // Round to 2 decimal places
       byStatus: data.byStatus,
     };
   }
@@ -76,7 +78,8 @@ export class AnalyticsDomain {
    * Get revenue metrics
    */
   async getRevenueMetrics(params?: DateRangeParams): Promise<RevenueMetrics> {
-    const dateRange = params || this.getDefaultDateRange();
+    const hasValidDateRange = params?.startDate && params?.endDate;
+    const dateRange = hasValidDateRange ? params : this.getDefaultDateRange();
     const data = await analyticsRepository.getRevenueMetrics(dateRange);
     return this.formatRevenueMetrics(data);
   }
@@ -85,7 +88,8 @@ export class AnalyticsDomain {
    * Get order statistics
    */
   async getOrderStatistics(params?: DateRangeParams): Promise<OrderStatistics> {
-    const dateRange = params || this.getDefaultDateRange();
+    const hasValidDateRange = params?.startDate && params?.endDate;
+    const dateRange = hasValidDateRange ? params : this.getDefaultDateRange();
     const data = await analyticsRepository.getOrderStatistics(dateRange);
     return this.formatOrderStatistics(data);
   }
@@ -94,7 +98,8 @@ export class AnalyticsDomain {
    * Get customer metrics
    */
   async getCustomerMetrics(params?: DateRangeParams): Promise<CustomerMetrics> {
-    const dateRange = params || this.getDefaultDateRange();
+    const hasValidDateRange = params?.startDate && params?.endDate;
+    const dateRange = hasValidDateRange ? params : this.getDefaultDateRange();
     const data = await analyticsRepository.getCustomerMetrics(dateRange);
     return this.formatCustomerMetrics(data);
   }
@@ -103,7 +108,9 @@ export class AnalyticsDomain {
    * Get combined dashboard metrics
    */
   async getDashboardMetrics(params?: DateRangeParams): Promise<DashboardMetrics> {
-    const dateRange = params || this.getDefaultDateRange();
+    // Use default date range if no params provided or if both dates are undefined
+    const hasValidDateRange = params?.startDate && params?.endDate;
+    const dateRange = hasValidDateRange ? params : this.getDefaultDateRange();
 
     // Fetch all metrics in parallel
     const [revenue, orders, customers, topProducts] = await Promise.all([

@@ -9,7 +9,7 @@ import { blogDomain } from '../features/blog/blog.domain';
 import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blog.interface';
 import { couponsDomain } from '../features/coupons/coupons.domain';
 import { createCouponSchema, updateCouponSchema } from '../features/coupons/coupons.interface';
-import { dashboardDomain } from '../features/dashboard/dashboard.domain';
+import { analyticsDomain } from '../features/analytics/analytics.domain';
 import { usersDomain } from '../features/users/users.domain';
 import { getCustomersParamsSchema } from '../features/users/users.interface';
 import { auth } from '../libs/auth';
@@ -30,7 +30,13 @@ adminRoutes.get('/tags', requireAdminAuth, async (c) => {
 
 // Dashboard metrics endpoint
 adminRoutes.get('/dashboard/metrics', requireAdminAuth, async (c) => {
-  const metrics = await dashboardDomain.getMetrics();
+  const startDate = c.req.query('startDate');
+  const endDate = c.req.query('endDate');
+
+  const metrics = await analyticsDomain.getDashboardMetrics({
+    startDate,
+    endDate,
+  });
   return ResponseBuilder.success(c, metrics);
 });
 

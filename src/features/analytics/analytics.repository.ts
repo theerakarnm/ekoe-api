@@ -139,7 +139,38 @@ export class AnalyticsRepository {
       count: Number(row.count),
     }));
 
-    return { total, averageValue, byStatus };
+    // Calculate growth (compare with previous period)
+    let growth = 0;
+    if (startDate && endDate) {
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const periodDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+
+      const previousStart = new Date(start);
+      previousStart.setDate(previousStart.getDate() - periodDays);
+
+      const previousResult = await db
+        .select({
+          total: sql<number>`COUNT(*)`,
+        })
+        .from(orders)
+        .where(
+          and(
+            gte(orders.createdAt, previousStart),
+            lte(orders.createdAt, start)
+          )
+        );
+
+      const previousTotal = Number(previousResult[0]?.total || 0);
+
+      if (previousTotal > 0) {
+        growth = ((total - previousTotal) / previousTotal) * 100;
+      } else if (total > 0) {
+        growth = 100;
+      }
+    }
+
+    return { total, averageValue, growth, byStatus };
   }
 
   /**
@@ -185,6 +216,16 @@ export class AnalyticsRepository {
     const newCustomers = Number(newResult[0]?.count || 0);
 
     // Get returning customers (customers who made more than one order in period)
+    // Build date conditions for orders table
+    const orderConditions = [];
+    if (startDate) {
+      orderConditions.push(gte(orders.createdAt, new Date(startDate)));
+    }
+    if (endDate) {
+      orderConditions.push(lte(orders.createdAt, new Date(endDate)));
+    }
+    const orderWhereClause = orderConditions.length > 0 ? and(...orderConditions) : undefined;
+
     const returningResult = await db
       .select({
         count: sql<number>`COUNT(DISTINCT ${orders.userId})`,
@@ -192,7 +233,7 @@ export class AnalyticsRepository {
       .from(orders)
       .where(
         and(
-          whereClause,
+          orderWhereClause,
           sql`${orders.userId} IS NOT NULL`,
           sql`${orders.userId} IN (
             SELECT ${orders.userId}

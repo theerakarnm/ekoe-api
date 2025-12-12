@@ -293,9 +293,38 @@ export class OrdersDomain {
     // Generate order number
     const orderNumber = this.generateOrderNumber();
 
-    // Get eligible free gifts
+    // Get eligible free gifts (global ones based on subtotal and product associations)
     const productIds = data.items.map(item => item.productId);
     const eligibleGifts = await cartRepository.getEligibleGifts(orderData.subtotal, productIds);
+
+    // Get product-specific complimentary gifts from ordered products
+    for (const item of orderData.items) {
+      if (item.productId) {
+        const [product] = await db
+          .select()
+          .from(products)
+          .where(eq(products.id, item.productId))
+          .limit(1);
+
+        if (product?.complimentaryGift && typeof product.complimentaryGift === 'object') {
+          const gift = product.complimentaryGift as { name?: string; description?: string; image?: string; value?: number };
+          if (gift.name) {
+            // Check if this gift is not already in eligibleGifts (avoid duplicates)
+            const isDuplicate = eligibleGifts.some(g => g.name === gift.name);
+            if (!isDuplicate) {
+              eligibleGifts.push({
+                id: `complimentary-${item.productId}`,
+                name: gift.name,
+                description: gift.description || '',
+                imageUrl: gift.image || '',
+                value: gift.value || 0,
+                associatedProductIds: [item.productId],
+              });
+            }
+          }
+        }
+      }
+    }
 
     // Process applied promotions and record usage
     let promotionDiscountAmount = 0;
