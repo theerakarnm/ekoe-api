@@ -1,0 +1,1 @@
+ALTER TABLE "product_images" ADD COLUMN "is_secondary" boolean DEFAULT false;

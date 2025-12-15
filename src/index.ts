@@ -28,7 +28,7 @@ const app = new Hono();
 app.use('*', loggerMiddleware);
 app.use('*', cors({
   origin: ['http://localhost:3000', 'http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev'], // Frontend URLs
-  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowHeaders: ["Content-Type", "Authorization", "User-Agent", "Accept", "Origin", "X-Requested-With"],
   credentials: true,
 }));

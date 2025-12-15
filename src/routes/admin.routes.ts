@@ -4,7 +4,7 @@ import { validateJson } from '../middleware/validation.middleware';
 import { ResponseBuilder } from '../core/response';
 import { productsDomain } from '../features/products/products.domain';
 import { productsRepository } from '../features/products/products.repository';
-import { createProductSchema, updateProductSchema } from '../features/products/products.interface';
+import { createProductSchema, updateProductSchema, bulkUpdateSortOrderSchema, updateSingleSortOrderSchema } from '../features/products/products.interface';
 import { blogDomain } from '../features/blog/blog.domain';
 import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blog.interface';
 import { couponsDomain } from '../features/coupons/coupons.domain';
@@ -86,6 +86,21 @@ adminRoutes.delete('/products/:id', requireAdminAuth, async (c) => {
   return ResponseBuilder.noContent(c);
 });
 
+// Bulk update product sequences (for drag-and-drop reordering)
+adminRoutes.patch('/products/sequences', requireAdminAuth, validateJson(bulkUpdateSortOrderSchema), async (c) => {
+  const { updates } = await c.req.json();
+  const result = await productsDomain.bulkUpdateProductSequences(updates);
+  return ResponseBuilder.success(c, { updated: result.length });
+});
+
+// Update single product sequence
+adminRoutes.patch('/products/:id/sequence', requireAdminAuth, validateJson(updateSingleSortOrderSchema), async (c) => {
+  const id = c.req.param('id');
+  const { sortOrder } = await c.req.json();
+  const product = await productsDomain.updateProductSortOrder(id, sortOrder);
+  return ResponseBuilder.success(c, product);
+});
+
 // Product image upload endpoint
 adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const productId = c.req.param('id');
@@ -104,6 +119,7 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const description = formData.get('description') as string | undefined;
   const sortOrder = formData.get('sortOrder') ? Number(formData.get('sortOrder')) : 0;
   const isPrimary = formData.get('isPrimary') === 'true';
+  const isSecondary = formData.get('isSecondary') === 'true';
 
   // Upload to R2
   const url = await storageService.uploadFile(imageFile);
@@ -114,6 +130,7 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
     description,
     sortOrder,
     isPrimary,
+    isSecondary,
   });
 
   return ResponseBuilder.created(c, image);
@@ -129,6 +146,7 @@ adminRoutes.put('/products/:id/images/:imageId', requireAdminAuth, async (c) => 
     description: body.description,
     sortOrder: body.sortOrder,
     isPrimary: body.isPrimary,
+    isSecondary: body.isSecondary,
   });
 
   return ResponseBuilder.success(c, image);

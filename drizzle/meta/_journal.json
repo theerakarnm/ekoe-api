@@ -64,6 +64,13 @@
       "when": 1765382288576,
       "tag": "0008_add_blog_content_blocks",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1765827534339,
+      "tag": "0009_colossal_psynapse",
+      "breakpoints": true
     }
   ]
 }

@@ -31,6 +31,9 @@ export const products = pgTable("products", {
   viewCount: integer("view_count").default(0),
   soldCount: integer("sold_count").default(0),
 
+  // Display ordering
+  sortOrder: integer("sort_order").default(0),
+
   // Inventory
   trackInventory: boolean("track_inventory").default(true),
 
@@ -95,6 +98,7 @@ export const productImages = pgTable("product_images", {
   // Ordering
   sortOrder: integer("sort_order").default(0),
   isPrimary: boolean("is_primary").default(false),
+  isSecondary: boolean("is_secondary").default(false),
 
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),

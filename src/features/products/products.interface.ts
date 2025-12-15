@@ -135,3 +135,19 @@ export interface PriceRange {
   min: number;
   max: number;
 }
+
+// Bulk sequence update types
+export const bulkUpdateSortOrderSchema = z.object({
+  updates: z.array(z.object({
+    productId: z.string(),
+    sortOrder: z.number().int().min(0),
+  })).min(1),
+});
+
+export const updateSingleSortOrderSchema = z.object({
+  sortOrder: z.number().int().min(0),
+});
+
+export type BulkUpdateSortOrderInput = z.infer<typeof bulkUpdateSortOrderSchema>;
+export type UpdateSingleSortOrderInput = z.infer<typeof updateSingleSortOrderSchema>;
+

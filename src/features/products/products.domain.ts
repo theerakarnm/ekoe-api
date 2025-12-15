@@ -199,6 +199,7 @@ export class ProductsDomain {
     description?: string;
     sortOrder?: number;
     isPrimary?: boolean;
+    isSecondary?: boolean;
   }) {
     return await productsRepository.updateImage(imageId, data);
   }
@@ -327,6 +328,34 @@ export class ProductsDomain {
       console.error('Error fetching price range:', error);
       throw new Error('Failed to fetch price range');
     }
+  }
+
+  /**
+   * Update a single product's sort order
+   */
+  async updateProductSortOrder(productId: string, sortOrder: number) {
+    if (sortOrder < 0) {
+      throw new ValidationError('Sort order must be a non-negative number');
+    }
+    return await productsRepository.updateSortOrder(productId, sortOrder);
+  }
+
+  /**
+   * Bulk update product sort orders (for drag-and-drop reordering)
+   */
+  async bulkUpdateProductSequences(updates: { productId: string; sortOrder: number }[]) {
+    if (!updates || updates.length === 0) {
+      throw new ValidationError('No updates provided');
+    }
+
+    // Validate all sort orders are non-negative
+    for (const update of updates) {
+      if (update.sortOrder < 0) {
+        throw new ValidationError(`Invalid sort order for product ${update.productId}: must be non-negative`);
+      }
+    }
+
+    return await productsRepository.bulkUpdateSortOrder(updates);
   }
 }
 

@@ -43,18 +43,21 @@ export class ProductsRepository {
     const total = Number(countResult[0]?.count || 0);
 
     // Get products with sorting
+    // If sorting by a specific field, use that; otherwise use sortOrder as primary, createdAt as secondary
     const orderByColumn = sortBy === 'name' ? products.name :
       sortBy === 'basePrice' ? products.basePrice :
         sortBy === 'soldCount' ? products.soldCount :
-          products.createdAt;
+          sortBy === 'sortOrder' ? products.sortOrder :
+            products.createdAt;
 
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
+    // Default ordering: sortOrder ASC, then createdAt DESC
     const result = await db
       .select()
       .from(products)
       .where(whereClause)
-      .orderBy(orderByFn(orderByColumn))
+      .orderBy(asc(products.sortOrder), desc(products.createdAt))
       .limit(limit)
       .offset(offset);
 
@@ -67,6 +70,7 @@ export class ProductsRepository {
       altText?: string | null;
       description?: string | null;
       isPrimary: boolean | null;
+      isSecondary: boolean | null;
       createdAt: string;
     }[]>();
 
@@ -78,6 +82,7 @@ export class ProductsRepository {
           altText: productImages.altText,
           description: productImages.description,
           isPrimary: productImages.isPrimary,
+          isSecondary: productImages.isSecondary,
           createdAt: productImages.createdAt
         })
         .from(productImages)
@@ -432,6 +437,7 @@ export class ProductsRepository {
     description?: string;
     sortOrder?: number;
     isPrimary?: boolean;
+    isSecondary?: boolean;
   }) {
     const result = await db
       .insert(productImages)
@@ -457,9 +463,10 @@ export class ProductsRepository {
     description?: string;
     sortOrder?: number;
     isPrimary?: boolean;
+    isSecondary?: boolean;
   }) {
-    // If setting as primary, unset other primary images for this product
-    if (data.isPrimary) {
+    // If setting as primary or secondary, unset other images with that flag for this product
+    if (data.isPrimary || data.isSecondary) {
       const image = await db
         .select({ productId: productImages.productId })
         .from(productImages)
@@ -467,10 +474,18 @@ export class ProductsRepository {
         .limit(1);
 
       if (image.length) {
-        await db
-          .update(productImages)
-          .set({ isPrimary: false })
-          .where(eq(productImages.productId, image[0].productId));
+        if (data.isPrimary) {
+          await db
+            .update(productImages)
+            .set({ isPrimary: false })
+            .where(eq(productImages.productId, image[0].productId));
+        }
+        if (data.isSecondary) {
+          await db
+            .update(productImages)
+            .set({ isSecondary: false })
+            .where(eq(productImages.productId, image[0].productId));
+        }
       }
     }
 
@@ -938,7 +953,7 @@ export class ProductsRepository {
         .where(whereClause);
     }
 
-    // Apply sorting
+    // Apply sorting - always use sortOrder as primary sort, then the specified sort
     const orderByColumn = sortBy === 'name' ? products.name :
       sortBy === 'price' ? products.basePrice :
         products.createdAt;
@@ -950,7 +965,7 @@ export class ProductsRepository {
 
     const [items, totalCountResult] = await Promise.all([
       query
-        .orderBy(orderByFn(orderByColumn))
+        .orderBy(asc(products.sortOrder), orderByFn(orderByColumn))
         .limit(limit)
         .offset(offset),
       countQuery
@@ -1018,7 +1033,60 @@ export class ProductsRepository {
     };
   }
 
+  /**
+   * Bulk update product sort orders
+   * Used for drag-and-drop reordering in admin
+   */
+  async bulkUpdateSortOrder(updates: { productId: string; sortOrder: number }[]) {
+    const results = [];
 
+    for (const update of updates) {
+      const result = await db
+        .update(products)
+        .set({
+          sortOrder: update.sortOrder,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(products.id, update.productId),
+            isNull(products.deletedAt)
+          )
+        )
+        .returning();
+
+      if (result.length > 0) {
+        results.push(result[0]);
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Update single product sort order
+   */
+  async updateSortOrder(productId: string, sortOrder: number) {
+    const result = await db
+      .update(products)
+      .set({
+        sortOrder,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(products.id, productId),
+          isNull(products.deletedAt)
+        )
+      )
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Product');
+    }
+
+    return result[0];
+  }
 }
 
 export const productsRepository = new ProductsRepository();
