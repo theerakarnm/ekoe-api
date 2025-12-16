@@ -46,6 +46,8 @@ export const products = pgTable("products", {
   // Additional text fields
   goodFor: text("good_for"),
   whyItWorks: text("why_it_works"),
+  feelsLike: text("feels_like"), // New: Texture description
+  smellsLike: text("smells_like"), // New: Scent description
 
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),

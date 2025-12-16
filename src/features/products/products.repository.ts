@@ -105,7 +105,34 @@ export class ProductsRepository {
       images: imagesMap.get(p.id) || []
     }));
 
-    return { products: productsWithImages, total };
+    // Get variants for these products
+    const variantsMap = new Map<string, any[]>();
+
+    if (productIds.length > 0) {
+      const variants = await db
+        .select()
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .orderBy(asc(productVariants.price));
+
+      for (const v of variants) {
+        if (!variantsMap.has(v.productId)) {
+          variantsMap.set(v.productId, []);
+        }
+        variantsMap.get(v.productId)?.push({
+          ...v,
+          createdAt: v.createdAt.toISOString(),
+          updatedAt: v.updatedAt.toISOString(),
+        });
+      }
+    }
+
+    const productsWithVariants = productsWithImages.map(p => ({
+      ...p,
+      variants: variantsMap.get(p.id) || []
+    }));
+
+    return { products: productsWithVariants, total };
   }
 
   async findById(id: string) {
@@ -698,11 +725,12 @@ export class ProductsRepository {
     scoredProducts.sort((a, b) => b.score - a.score);
     const topProducts = scoredProducts.slice(0, limit).map(sp => sp.product);
 
-    // Get images for each product
+    // Get images and variants for each product
     const productsWithImages = await Promise.all(
       topProducts.map(async (product) => {
         const images = await this.getImages(product.id);
-        return { ...product, images };
+        const variants = await this.getVariants(product.id);
+        return { ...product, images, variants };
       })
     );
 
@@ -758,11 +786,12 @@ export class ProductsRepository {
         )
       );
 
-    // Get images for each product
+    // Get images and variants for each product
     const productsWithImages = await Promise.all(
       productDetails.map(async (product) => {
         const images = await this.getImages(product.id);
-        return { ...product, images };
+        const variants = await this.getVariants(product.id);
+        return { ...product, images, variants };
       })
     );
 
@@ -1022,8 +1051,35 @@ export class ProductsRepository {
       images: imagesMap.get(p.id) || []
     }));
 
+    // Get variants for these products
+    const variantsMap = new Map<string, any[]>();
+
+    if (productIds.length > 0) {
+      const variants = await db
+        .select()
+        .from(productVariants)
+        .where(inArray(productVariants.productId, productIds))
+        .orderBy(asc(productVariants.price));
+
+      for (const v of variants) {
+        if (!variantsMap.has(v.productId)) {
+          variantsMap.set(v.productId, []);
+        }
+        variantsMap.get(v.productId)?.push({
+          ...v,
+          createdAt: v.createdAt.toISOString(),
+          updatedAt: v.updatedAt.toISOString(),
+        });
+      }
+    }
+
+    const productsWithVariants = productsWithImages.map(p => ({
+      ...p,
+      variants: variantsMap.get(p.id) || []
+    }));
+
     return {
-      data: productsWithImages,
+      data: productsWithVariants,
       pagination: {
         page,
         limit,
