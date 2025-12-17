@@ -31,6 +31,8 @@ export const createProductSchema = z.object({
     })).optional(),
     proTips: z.array(z.string()).optional(),
     note: z.string().optional(),
+    mediaUrl: z.string().optional(),
+    mediaType: z.enum(['image', 'video']).optional(),
   }).optional(),
   complimentaryGift: z.object({
     name: z.string().optional(),

@@ -49,6 +49,10 @@ export const products = pgTable("products", {
   feelsLike: text("feels_like"), // New: Texture description
   smellsLike: text("smells_like"), // New: Scent description
 
+  // CTA Hero Section
+  ctaBackgroundUrl: varchar("cta_background_url", { length: 1000 }),
+  ctaBackgroundType: varchar("cta_background_type", { length: 20 }), // 'image' | 'video'
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
