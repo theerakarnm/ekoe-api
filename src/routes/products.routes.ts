@@ -17,7 +17,7 @@ const productsRoutes = new Hono<{
 productsRoutes.get('/categories', optionalAuth, async (c) => {
   // Call domain method to get categories
   const categories = await productsDomain.getCategories();
-  
+
   // Return categories array
   return ResponseBuilder.success(c, categories);
 });
@@ -26,7 +26,7 @@ productsRoutes.get('/categories', optionalAuth, async (c) => {
 productsRoutes.get('/price-range', optionalAuth, async (c) => {
   // Call domain method to get price range
   const priceRange = await productsDomain.getPriceRange();
-  
+
   // Return min and max prices
   return ResponseBuilder.success(c, priceRange);
 });
@@ -38,6 +38,7 @@ productsRoutes.get('/', optionalAuth, async (c) => {
   const categoriesParam = c.req.query('categories');
   const minPriceParam = c.req.query('minPrice');
   const maxPriceParam = c.req.query('maxPrice');
+  const productTypeParam = c.req.query('productType') as 'single' | 'set' | 'bundle' | undefined;
   const pageParam = c.req.query('page');
   const limitParam = c.req.query('limit');
   const sortBy = c.req.query('sortBy') as 'price' | 'createdAt' | 'name' | undefined;
@@ -67,6 +68,10 @@ productsRoutes.get('/', optionalAuth, async (c) => {
     if (!isNaN(maxPrice)) {
       filterParams.maxPrice = maxPrice;
     }
+  }
+
+  if (productTypeParam && ['single', 'set', 'bundle'].includes(productTypeParam)) {
+    filterParams.productType = productTypeParam;
   }
 
   if (pageParam) {
@@ -103,19 +108,19 @@ productsRoutes.get('/:id/related', optionalAuth, async (c) => {
   try {
     // Extract product ID from route params
     const id = c.req.param('id');
-    
+
     // Parse limit query parameter (default 4)
     const limitParam = c.req.query('limit');
     const limit = limitParam ? parseInt(limitParam, 10) : 4;
-    
+
     // Validate limit is a positive number
     if (isNaN(limit) || limit < 1) {
       return ResponseBuilder.error(c, 'Invalid limit parameter', 400, 'INVALID_PARAMETER');
     }
-    
+
     // Call domain method to get related products
     const relatedProducts = await productsDomain.getRelatedProducts(id, limit);
-    
+
     // Return success response with products array
     return ResponseBuilder.success(c, relatedProducts);
   } catch (error: any) {
@@ -123,7 +128,7 @@ productsRoutes.get('/:id/related', optionalAuth, async (c) => {
     if (error.code === 'NOT_FOUND') {
       return ResponseBuilder.error(c, 'Product not found', 404, 'NOT_FOUND');
     }
-    
+
     // Handle other errors
     return ResponseBuilder.error(c, error.message || 'Failed to fetch related products', 500, 'INTERNAL_ERROR');
   }
@@ -134,10 +139,10 @@ productsRoutes.get('/:id/frequently-bought-together', optionalAuth, async (c) =>
   try {
     // Extract product ID from route params
     const id = c.req.param('id');
-    
+
     // Call domain method to get bundle
     const bundle = await productsDomain.getFrequentlyBoughtTogether(id);
-    
+
     // Return success response with products, totalPrice, and savings
     // Handle empty results (return empty bundle)
     return ResponseBuilder.success(c, bundle);
@@ -146,7 +151,7 @@ productsRoutes.get('/:id/frequently-bought-together', optionalAuth, async (c) =>
     if (error.code === 'NOT_FOUND') {
       return ResponseBuilder.error(c, 'Product not found', 404, 'NOT_FOUND');
     }
-    
+
     // Handle other errors
     return ResponseBuilder.error(c, error.message || 'Failed to fetch frequently bought together products', 500, 'INTERNAL_ERROR');
   }
@@ -168,16 +173,16 @@ productsRoutes.get('/:id', optionalAuth, async (c) => {
 // Public endpoint to validate inventory for cart items
 productsRoutes.post('/validate-inventory', optionalAuth, zValidator('json', validateInventorySchema), async (c) => {
   const { items } = c.req.valid('json');
-  
+
   const validation = await productsDomain.validateInventory(items);
-  
+
   if (!validation.isValid) {
     return ResponseBuilder.error(c, 'Some items are not available', 400, 'INVENTORY_UNAVAILABLE', {
       results: validation.results,
       errors: validation.errors,
     });
   }
-  
+
   return ResponseBuilder.success(c, validation);
 });
 

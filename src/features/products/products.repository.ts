@@ -888,6 +888,7 @@ export class ProductsRepository {
       categories: categoryIds,
       minPrice,
       maxPrice,
+      productType,
       page = 1,
       limit = 24,
       sortBy = 'createdAt',
@@ -915,6 +916,11 @@ export class ProductsRepository {
 
     if (maxPrice !== undefined) {
       conditions.push(lte(products.basePrice, maxPrice));
+    }
+
+    // Product type filtering
+    if (productType) {
+      conditions.push(eq(products.productType, productType));
     }
 
     const whereClause = and(...conditions);

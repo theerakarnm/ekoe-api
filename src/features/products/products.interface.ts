@@ -111,6 +111,7 @@ export interface ProductFilterParams {
   categories?: string[];
   minPrice?: number;
   maxPrice?: number;
+  productType?: 'single' | 'set' | 'bundle';
   page?: number;
   limit?: number;
   sortBy?: 'price' | 'createdAt' | 'name';

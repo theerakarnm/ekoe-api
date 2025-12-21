@@ -105,6 +105,11 @@ export class ProductsDomain {
       validated.sortOrder = params.sortOrder;
     }
 
+    // Validate product type
+    if (params.productType && ['single', 'set', 'bundle'].includes(params.productType)) {
+      validated.productType = params.productType;
+    }
+
     return validated;
   }
   async getAllProducts(params: {
