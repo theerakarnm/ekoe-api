@@ -59,6 +59,8 @@ export const createProductSchema = z.object({
   feelsLike: z.string().optional(),
   smellsLike: z.string().optional(),
   tags: z.array(z.string()).optional(),
+  ctaBackgroundUrl: z.string().optional().or(z.literal('')),
+  ctaBackgroundType: z.enum(['image', 'video']).optional().or(z.literal('')).nullable(),
 });
 
 export const updateProductSchema = createProductSchema.partial();
