@@ -9,7 +9,7 @@ const pool = new Pool({
   connectionString: config.database.url,
 });
 
-export const db = drizzle(pool, { schema });
+export const db = drizzle(pool, { schema, logger: true });
 
 export const checkDbConnection = async () => {
   try {

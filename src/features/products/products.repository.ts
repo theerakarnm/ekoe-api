@@ -1024,6 +1024,7 @@ export class ProductsRepository {
       altText?: string | null;
       description?: string | null;
       isPrimary: boolean | null;
+      isSecondary: boolean | null;
       createdAt: string;
     }[]>();
 
@@ -1035,6 +1036,7 @@ export class ProductsRepository {
           altText: productImages.altText,
           description: productImages.description,
           isPrimary: productImages.isPrimary,
+          isSecondary: productImages.isSecondary,
           createdAt: productImages.createdAt
         })
         .from(productImages)

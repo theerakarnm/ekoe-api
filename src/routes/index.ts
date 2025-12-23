@@ -67,8 +67,6 @@ router.on(['POST', 'GET'], '/auth/*', async (c) => {
         headers: clonedResponse.headers
       })
 
-      console.log({ cookieData, session })
-
       // Only process JSON responses (sign-up/sign-in endpoints)
       if (contentType?.includes('application/json')) {
         try {

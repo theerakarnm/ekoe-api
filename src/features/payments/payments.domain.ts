@@ -582,23 +582,17 @@ export class PaymentsDomain {
             logger.warn({ invoiceNo, paymentId }, 'Payment not found for order during 2C2P return processing');
           }
 
-          console.log('set status completed');
-
 
           // Return the payment status response
           // We fetch fresh status to be sure
           if (payment) {
             const currentStatus = await this.getPaymentStatus(payment.id, tx);
-            console.log({ currentStatus });
-
             return {
               ...currentStatus,
               message: decodedData?.respDesc || (status === 'completed' ? 'Success' : 'Payment Failed'),
               transactionRef
             };
           }
-
-          console.log('set status failed');
 
           // If no payment found, return basic status info
           return {
@@ -609,7 +603,7 @@ export class PaymentsDomain {
             transactionRef
           };
         } catch (error) {
-          console.log({ error });
+          console.error({ error });
 
           // TODO: Save to retry table and using cronjob to retry action.
 
