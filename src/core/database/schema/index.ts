@@ -17,3 +17,6 @@ export * from './analytics.schema';
 
 // Admin
 export * from './admin.schema';
+
+// Contact
+export * from './contact.schema';

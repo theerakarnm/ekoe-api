@@ -2,7 +2,8 @@ import { db } from '../../core/database';
 import { orders, orderItems } from '../../core/database/schema/orders.schema';
 import { productImages } from '../../core/database/schema/products.schema';
 import { users } from '../../core/database/schema/auth-schema';
-import { sql, gte, lte, and, eq } from 'drizzle-orm';
+import { contacts } from '../../core/database/schema/contact.schema';
+import { sql, gte, lte, and, eq, count } from 'drizzle-orm';
 import type { DateRangeParams } from './analytics.interface';
 
 export class AnalyticsRepository {
@@ -351,6 +352,23 @@ export class AnalyticsRepository {
       revenue: Number(product.revenue),
       imageUrl: product.id ? imageMap[product.id] : undefined,
     }));
+  }
+
+  // Get contact metrics
+  async getContactMetrics(params: DateRangeParams) {
+    // Current period unread count
+    const [currentUnread] = await db
+      .select({ count: count() })
+      .from(contacts)
+      .where(eq(contacts.status, 'unread'));
+
+    // We can also calculate growth if we want, but for unread messages, 
+    // simply showing the current count is most important.
+
+    return {
+      unread: Number(currentUnread?.count || 0),
+      growth: 0, // Placeholder
+    };
   }
 }
 

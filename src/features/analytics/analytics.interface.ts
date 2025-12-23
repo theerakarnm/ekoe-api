@@ -53,5 +53,9 @@ export interface DashboardMetrics {
   orders: OrderStatistics;
   customers: CustomerMetrics;
   topProducts?: TopProductMetric[];
+  contacts?: {
+    unread: number;
+    growth?: number;
+  };
 }
 

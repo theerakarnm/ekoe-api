@@ -113,11 +113,12 @@ export class AnalyticsDomain {
     const dateRange = hasValidDateRange ? params : this.getDefaultDateRange();
 
     // Fetch all metrics in parallel
-    const [revenue, orders, customers, topProducts] = await Promise.all([
+    const [revenue, orders, customers, topProducts, contacts] = await Promise.all([
       this.getRevenueMetrics(dateRange),
       this.getOrderStatistics(dateRange),
       this.getCustomerMetrics(dateRange),
       analyticsRepository.getTopProducts(dateRange, 5),
+      analyticsRepository.getContactMetrics(dateRange),
     ]);
 
     return {
@@ -125,6 +126,7 @@ export class AnalyticsDomain {
       orders,
       customers,
       topProducts,
+      contacts,
     };
   }
 }
