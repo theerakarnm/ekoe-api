@@ -61,6 +61,12 @@ export const createProductSchema = z.object({
   tags: z.array(z.string()).optional(),
   ctaBackgroundUrl: z.string().optional().or(z.literal('')),
   ctaBackgroundType: z.enum(['image', 'video']).optional().or(z.literal('')).nullable(),
+  // Scrolling Experience
+  scrollingExperience: z.array(z.object({
+    id: z.string(),
+    title: z.string(),
+    imageUrl: z.string().optional().or(z.literal('')),
+  })).optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();

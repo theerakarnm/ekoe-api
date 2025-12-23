@@ -53,6 +53,9 @@ export const products = pgTable("products", {
   ctaBackgroundUrl: varchar("cta_background_url", { length: 1000 }),
   ctaBackgroundType: varchar("cta_background_type", { length: 20 }), // 'image' | 'video'
 
+  // Scrolling Experience - array of scroll blocks with id, title, imageUrl
+  scrollingExperience: jsonb("scrolling_experience"), // [{ id, title, imageUrl }]
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
