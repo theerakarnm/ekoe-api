@@ -45,6 +45,10 @@ export interface PromotionRule {
   applicableCategoryIds?: string[];
   giftProductIds?: string[];
   giftQuantities?: number[];
+  giftName?: string;
+  giftPrice?: number;
+  giftImageUrl?: string;
+  giftQuantity?: number;
   createdAt: Date;
 }
 
@@ -156,20 +160,23 @@ export const createPromotionSchema = z.object({
 export const updatePromotionSchema = createPromotionSchema.partial()
 
 export const createPromotionRuleSchema = z.object({
-  promotionId: z.string(),
   ruleType: z.enum(['condition', 'benefit']),
-  conditionType: z.enum(['cart_value', 'product_quantity', 'specific_products', 'category_products']).optional(),
-  operator: z.enum(['gte', 'lte', 'eq', 'in', 'not_in']).optional(),
-  numericValue: z.number().optional(),
-  textValue: z.string().optional(),
-  jsonValue: z.any().optional(),
-  benefitType: z.enum(['percentage_discount', 'fixed_discount', 'free_gift']).optional(),
-  benefitValue: z.number().optional(),
-  maxDiscountAmount: z.number().int().positive().optional(),
-  applicableProductIds: z.array(z.string()).optional(),
-  applicableCategoryIds: z.array(z.string()).optional(),
-  giftProductIds: z.array(z.string()).optional(),
-  giftQuantities: z.array(z.number().int().positive()).optional(),
+  conditionType: z.enum(['cart_value', 'product_quantity', 'specific_products', 'category_products']).optional().nullable(),
+  operator: z.enum(['gte', 'lte', 'eq', 'in', 'not_in']).optional().nullable(),
+  numericValue: z.number().optional().nullable(),
+  textValue: z.string().optional().nullable(),
+  jsonValue: z.any().optional().nullable(),
+  benefitType: z.enum(['percentage_discount', 'fixed_discount', 'free_gift']).optional().nullable(),
+  benefitValue: z.number().optional().nullable(),
+  maxDiscountAmount: z.number().int().positive().optional().nullable(),
+  applicableProductIds: z.array(z.string()).optional().nullable(),
+  applicableCategoryIds: z.array(z.string()).optional().nullable(),
+  giftProductIds: z.array(z.string()).optional().nullable(),
+  giftQuantities: z.array(z.number().int().positive()).optional().nullable(),
+  giftName: z.string().optional().nullable(),
+  giftPrice: z.number().optional().nullable(),
+  giftImageUrl: z.string().optional().nullable(),
+  giftQuantity: z.number().int().positive().optional().nullable(),
 });
 
 export const promotionEvaluationContextSchema = z.object({

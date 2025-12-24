@@ -234,6 +234,10 @@ export class PromotionRepository {
         applicableCategoryIds: rule.applicableCategoryIds ? JSON.stringify(rule.applicableCategoryIds) : null,
         giftProductIds: rule.giftProductIds ? JSON.stringify(rule.giftProductIds) : null,
         giftQuantities: rule.giftQuantities ? JSON.stringify(rule.giftQuantities) : null,
+        giftName: rule.giftName,
+        giftPrice: rule.giftPrice?.toString(),
+        giftImageUrl: rule.giftImageUrl,
+        giftQuantity: rule.giftQuantity,
       })
       .returning();
 
@@ -827,6 +831,10 @@ export class PromotionRepository {
       applicableCategoryIds: this.safeJsonParse(dbRule.applicableCategoryIds),
       giftProductIds: this.safeJsonParse(dbRule.giftProductIds),
       giftQuantities: this.safeJsonParse(dbRule.giftQuantities),
+      giftName: dbRule.giftName,
+      giftPrice: dbRule.giftPrice ? parseFloat(dbRule.giftPrice) : undefined,
+      giftImageUrl: dbRule.giftImageUrl,
+      giftQuantity: dbRule.giftQuantity,
       createdAt: new Date(dbRule.createdAt),
     };
   }

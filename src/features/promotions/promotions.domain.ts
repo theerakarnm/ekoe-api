@@ -3,10 +3,10 @@ import { promotionEngine } from './promotion-engine';
 import { promotionScheduler } from './promotion-scheduler';
 import { promotionMonitor } from './promotion-monitor';
 import { promotionAudit } from './promotion-audit';
-import { 
-  ValidationError, 
-  NotFoundError, 
-  ConflictError 
+import {
+  ValidationError,
+  NotFoundError,
+  ConflictError
 } from '../../core/errors';
 import type {
   Promotion,
@@ -73,7 +73,7 @@ export class PromotionDomain {
     if (data.startsAt || data.endsAt) {
       const startDate = data.startsAt ? new Date(data.startsAt) : existingPromotion.startsAt;
       const endDate = data.endsAt ? new Date(data.endsAt) : existingPromotion.endsAt;
-      
+
       if (endDate <= startDate) {
         throw new PromotionValidationError('End date must be after start date', 'endsAt');
       }
@@ -84,24 +84,30 @@ export class PromotionDomain {
       throw new NotFoundError('Promotion not found');
     }
 
-    // Update status if dates changed
+    // Update status if dates changed - but preserve 'paused' status
     let statusChanged = false;
     if (data.startsAt || data.endsAt) {
-      const newStatus = this.determinePromotionStatus(updatedPromotion.startsAt, updatedPromotion.endsAt);
-      if (newStatus !== updatedPromotion.status) {
-        const oldStatus = updatedPromotion.status;
-        await promotionRepository.updatePromotionStatus(id, newStatus);
-        updatedPromotion.status = newStatus as any;
-        statusChanged = true;
+      const currentStatus = updatedPromotion.status;
 
-        // Log status change
-        await promotionAudit.logPromotionStatusChange(
-          id,
-          oldStatus,
-          newStatus,
-          userId,
-          { reason: 'Date change triggered status update' }
-        );
+      // Don't auto-change status if promotion is paused (manually deactivated)
+      // Only auto-update for scheduled/active/expired based on dates
+      if (currentStatus !== 'paused') {
+        const newStatus = this.determinePromotionStatus(updatedPromotion.startsAt, updatedPromotion.endsAt);
+        if (newStatus !== currentStatus) {
+          const oldStatus = currentStatus;
+          await promotionRepository.updatePromotionStatus(id, newStatus);
+          updatedPromotion.status = newStatus as any;
+          statusChanged = true;
+
+          // Log status change
+          await promotionAudit.logPromotionStatusChange(
+            id,
+            oldStatus,
+            newStatus,
+            userId,
+            { reason: 'Date change triggered status update' }
+          );
+        }
       }
     }
 
@@ -124,7 +130,7 @@ export class PromotionDomain {
    * Add rules to a promotion
    */
   async addPromotionRules(
-    promotionId: string, 
+    promotionId: string,
     rules: Omit<PromotionRule, 'id' | 'promotionId' | 'createdAt'>[],
     userId?: string
   ): Promise<PromotionRule[]> {
@@ -280,7 +286,7 @@ export class PromotionDomain {
         promotionId,
         customerId
       );
-      
+
       if (customerUsage >= promotion.usageLimitPerCustomer) {
         throw new PromotionUsageLimitError(
           'Customer usage limit exceeded for this promotion',
@@ -375,7 +381,7 @@ export class PromotionDomain {
    */
   private validateActivePromotionUpdate(data: Partial<UpdatePromotionDto>): void {
     const restrictedFields = ['type', 'startsAt'];
-    
+
     for (const field of restrictedFields) {
       if (data[field as keyof UpdatePromotionDto] !== undefined) {
         throw new ConflictError(`Cannot modify ${field} of an active promotion`);
@@ -423,9 +429,9 @@ export class PromotionDomain {
         throw new PromotionValidationError('Benefit value is required for discount benefits');
       }
 
-      if (rule.benefitType === 'free_gift' && (!rule.giftProductIds || rule.giftProductIds.length === 0)) {
-        throw new PromotionValidationError('Gift product IDs are required for free gift benefits');
-      }
+      // if (rule.benefitType === 'free_gift' && (!rule.giftProductIds || rule.giftProductIds.length === 0)) {
+      //   throw new PromotionValidationError('Gift product IDs are required for free gift benefits');
+      // }
     }
   }
 
@@ -434,7 +440,7 @@ export class PromotionDomain {
    */
   private determinePromotionStatus(startsAt: Date, endsAt: Date): string {
     const now = new Date();
-    
+
     if (now < startsAt) {
       return 'scheduled';
     } else if (now >= startsAt && now < endsAt) {

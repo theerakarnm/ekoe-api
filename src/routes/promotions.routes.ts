@@ -410,8 +410,29 @@ promotions.delete('/:id', requireAdminAuth, async (c) => {
 promotions.post('/:id/rules', requireAdminAuth, zValidator('json', z.array(createPromotionRuleSchema)), async (c) => {
   try {
     const promotionId = c.req.param('id');
-    const rules = c.req.valid('json');
+    const rawRules = c.req.valid('json');
     const user = c.get('user');
+
+    // Convert null values to undefined for type compatibility
+    const rules = rawRules.map(rule => ({
+      ruleType: rule.ruleType,
+      conditionType: rule.conditionType ?? undefined,
+      operator: rule.operator ?? undefined,
+      numericValue: rule.numericValue ?? undefined,
+      textValue: rule.textValue ?? undefined,
+      jsonValue: rule.jsonValue ?? undefined,
+      benefitType: rule.benefitType ?? undefined,
+      benefitValue: rule.benefitValue ?? undefined,
+      maxDiscountAmount: rule.maxDiscountAmount ?? undefined,
+      applicableProductIds: rule.applicableProductIds ?? undefined,
+      applicableCategoryIds: rule.applicableCategoryIds ?? undefined,
+      giftProductIds: rule.giftProductIds ?? undefined,
+      giftQuantities: rule.giftQuantities ?? undefined,
+      giftName: rule.giftName ?? undefined,
+      giftPrice: rule.giftPrice ?? undefined,
+      giftImageUrl: rule.giftImageUrl ?? undefined,
+      giftQuantity: rule.giftQuantity ?? undefined,
+    }));
 
     const createdRules = await promotionDomain.addPromotionRules(promotionId, rules);
 
