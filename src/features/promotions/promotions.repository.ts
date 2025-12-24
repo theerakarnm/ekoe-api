@@ -256,6 +256,17 @@ export class PromotionRepository {
   }
 
   /**
+   * Delete all rules for a promotion
+   */
+  async deletePromotionRulesByPromotionId(promotionId: string): Promise<number> {
+    const result = await db
+      .delete(autoPromotionRules)
+      .where(eq(autoPromotionRules.promotionId, promotionId));
+
+    return result.rowCount || 0;
+  }
+
+  /**
    * Check for promotion conflicts based on exclusivity rules
    */
   async checkPromotionConflicts(promotionId: string, otherPromotionIds: string[]): Promise<string[]> {

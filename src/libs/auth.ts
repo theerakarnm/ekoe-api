@@ -68,6 +68,16 @@ export const auth = betterAuth({
       clientSecret: config.google.clientSecret,
       enabled: !!config.google.clientId && !!config.google.clientSecret,
     },
+    facebook: {
+      clientId: config.facebook.clientId,
+      clientSecret: config.facebook.clientSecret,
+      enabled: !!config.facebook.clientId && !!config.facebook.clientSecret,
+    },
+    line: {
+      clientId: config.line.clientId,
+      clientSecret: config.line.clientSecret,
+      enabled: !!config.line.clientId && !!config.line.clientSecret,
+    },
   },
   plugins: [
     admin()

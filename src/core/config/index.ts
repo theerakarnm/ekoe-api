@@ -12,6 +12,14 @@ export const config = {
     clientId: process.env.GOOGLE_CLIENT_ID || '',
     clientSecret: process.env.GOOGLE_CLIENT_SECRET || '',
   },
+  facebook: {
+    clientId: process.env.FACEBOOK_CLIENT_ID || '',
+    clientSecret: process.env.FACEBOOK_CLIENT_SECRET || '',
+  },
+  line: {
+    clientId: process.env.LINE_CLIENT_ID || '',
+    clientSecret: process.env.LINE_CLIENT_SECRET || '',
+  },
   email: {
     smtp: {
       host: process.env.SMTP_HOST || '',

@@ -127,7 +127,7 @@ export class PromotionDomain {
   }
 
   /**
-   * Add rules to a promotion
+   * Add rules to a promotion (replaces existing rules)
    */
   async addPromotionRules(
     promotionId: string,
@@ -141,6 +141,10 @@ export class PromotionDomain {
 
     // Validate rules
     this.validatePromotionRules(rules);
+
+    // Delete existing rules before adding new ones
+    // This ensures that deleted rules are actually removed from the database
+    await promotionRepository.deletePromotionRulesByPromotionId(promotionId);
 
     // Create rules
     const createdRules: PromotionRule[] = [];
