@@ -1,9 +1,9 @@
 import { promotionRepository } from './promotions.repository';
 import { promotionSecurity } from './promotion-security';
 import { promotionAudit } from './promotion-audit';
-import { 
-  ValidationError, 
-  NotFoundError 
+import {
+  ValidationError,
+  NotFoundError
 } from '../../core/errors';
 import type {
   Promotion,
@@ -42,7 +42,7 @@ export class PromotionEngine {
 
     // Get all active promotions
     const activePromotions = await promotionRepository.getActivePromotions();
-    
+
     if (activePromotions.length === 0) {
       return {
         eligiblePromotions: [],
@@ -53,13 +53,19 @@ export class PromotionEngine {
 
     // Evaluate each promotion for eligibility
     const eligiblePromotions: EligiblePromotion[] = [];
-    
+
+    console.dir({ activePromotions }, { depth: null });
+
+
     for (const promotion of activePromotions) {
       const eligibility = await this.evaluatePromotionEligibility(promotion, context);
       if (eligibility) {
         eligiblePromotions.push(eligibility);
       }
     }
+
+    console.dir({ eligiblePromotions }, { depth: null });
+
 
     if (eligiblePromotions.length === 0) {
       return {
@@ -80,7 +86,7 @@ export class PromotionEngine {
       const promotion = eligiblePromotions.find(p => p.promotion.id === selectedPromotion.promotionId)?.promotion;
       if (promotion) {
         await promotionSecurity.validatePromotionCalculations(context, selectedPromotion, promotion);
-        
+
         // Log promotion application for audit
         await promotionAudit.logPromotionApplied(
           selectedPromotion,
@@ -198,7 +204,7 @@ export class PromotionEngine {
         promotion.id,
         customerId
       );
-      
+
       if (customerUsage >= promotion.usageLimitPerCustomer) {
         throw new PromotionUsageLimitError(
           'Customer usage limit exceeded for this promotion',
@@ -215,16 +221,16 @@ export class PromotionEngine {
     switch (condition.conditionType) {
       case 'cart_value':
         return this.evaluateCartValueCondition(condition, context.cartSubtotal);
-      
+
       case 'product_quantity':
         return this.evaluateProductQuantityCondition(condition, context.cartItems);
-      
+
       case 'specific_products':
         return this.evaluateSpecificProductsCondition(condition, context.cartItems);
-      
+
       case 'category_products':
         return this.evaluateCategoryProductsCondition(condition, context.cartItems);
-      
+
       default:
         return false;
     }
@@ -235,7 +241,7 @@ export class PromotionEngine {
    */
   private evaluateCartValueCondition(condition: PromotionRule, cartSubtotal: number): boolean {
     const threshold = condition.numericValue || 0;
-    
+
     switch (condition.operator) {
       case 'gte':
         return cartSubtotal >= threshold;
@@ -254,14 +260,14 @@ export class PromotionEngine {
   private evaluateProductQuantityCondition(condition: PromotionRule, cartItems: CartItem[]): boolean {
     const targetProductIds = condition.jsonValue as string[] || [];
     const threshold = condition.numericValue || 0;
-    
+
     let totalQuantity = 0;
     for (const item of cartItems) {
       if (targetProductIds.length === 0 || targetProductIds.includes(item.productId)) {
         totalQuantity += item.quantity;
       }
     }
-    
+
     switch (condition.operator) {
       case 'gte':
         return totalQuantity >= threshold;
@@ -280,7 +286,7 @@ export class PromotionEngine {
   private evaluateSpecificProductsCondition(condition: PromotionRule, cartItems: CartItem[]): boolean {
     const requiredProductIds = condition.jsonValue as string[] || [];
     const cartProductIds = cartItems.map(item => item.productId);
-    
+
     switch (condition.operator) {
       case 'in':
         return requiredProductIds.some(id => cartProductIds.includes(id));
@@ -296,10 +302,10 @@ export class PromotionEngine {
    */
   private evaluateCategoryProductsCondition(condition: PromotionRule, cartItems: CartItem[]): boolean {
     const requiredCategoryIds = condition.jsonValue as string[] || [];
-    
+
     for (const item of cartItems) {
       const itemCategoryIds = item.categoryIds || [];
-      
+
       switch (condition.operator) {
         case 'in':
           if (requiredCategoryIds.some(id => itemCategoryIds.includes(id))) {
@@ -313,7 +319,7 @@ export class PromotionEngine {
           break;
       }
     }
-    
+
     return condition.operator === 'not_in'; // If we reach here with not_in, no matches found
   }
 
@@ -332,11 +338,11 @@ export class PromotionEngine {
         case 'percentage_discount':
           potentialDiscount += this.calculatePercentageDiscount(benefit, context);
           break;
-        
+
         case 'fixed_discount':
           potentialDiscount += this.calculateFixedDiscount(benefit, context);
           break;
-        
+
         case 'free_gift':
           const gifts = await this.calculateFreeGifts(benefit, context);
           potentialGifts.push(...gifts);
@@ -352,7 +358,7 @@ export class PromotionEngine {
    */
   private calculatePercentageDiscount(benefit: PromotionRule, context: PromotionEvaluationContext): number {
     const percentage = benefit.benefitValue || 0;
-    
+
     // Validate percentage is within reasonable bounds
     if (percentage < 0 || percentage > 100) {
       throw new ValidationError(`Invalid percentage value: ${percentage}. Must be between 0 and 100.`);
@@ -377,7 +383,7 @@ export class PromotionEngine {
    */
   private calculateFixedDiscount(benefit: PromotionRule, context: PromotionEvaluationContext): number {
     const fixedAmount = benefit.benefitValue || 0;
-    
+
     // Validate fixed amount is positive
     if (fixedAmount < 0) {
       throw new ValidationError(`Invalid fixed discount amount: ${fixedAmount}. Must be non-negative.`);
@@ -414,17 +420,32 @@ export class PromotionEngine {
 
   /**
    * Calculate free gifts with comprehensive inventory validation and tier selection
+   * Supports both product-based gifts and standalone admin-created gifts
    */
   private async calculateFreeGifts(benefit: PromotionRule, context?: PromotionEvaluationContext): Promise<FreeGift[]> {
     const giftProductIds = benefit.giftProductIds || [];
     const giftQuantities = benefit.giftQuantities || [];
+    const freeGifts: FreeGift[] = [];
 
+    // Case 1: Handle standalone admin-created gifts (not based on existing products)
+    // These are gifts with giftName/giftImageUrl but no giftProductIds
+    if (giftProductIds.length === 0 && benefit.giftName) {
+      freeGifts.push({
+        productId: undefined, // No associated product
+        quantity: benefit.giftQuantity || 1,
+        name: benefit.giftName,
+        value: benefit.giftPrice || 0, // Gift's value for display purposes
+        imageUrl: benefit.giftImageUrl,
+      });
+      return freeGifts;
+    }
+
+    // Case 2: Handle product-based gifts
     if (giftProductIds.length === 0) return [];
 
     // Validate gift products are available in inventory before promotion application
     const validatedGifts = await this.validateGiftInventoryAvailability(giftProductIds);
-    
-    const freeGifts: FreeGift[] = [];
+
     for (let i = 0; i < giftProductIds.length; i++) {
       const productId = giftProductIds[i];
       const quantity = giftQuantities[i] || 1;
@@ -458,7 +479,7 @@ export class PromotionEngine {
 
     // Get detailed product information including stock levels
     const giftProducts = await promotionRepository.validateGiftProductsWithStock(productIds);
-    
+
     return giftProducts.map(product => ({
       id: product.id,
       name: product.name,
@@ -478,7 +499,7 @@ export class PromotionEngine {
     // Get all gift benefit rules for this promotion
     const rules = await promotionRepository.getPromotionRules(promotion.id);
     const giftBenefitRules = rules.filter(r => r.ruleType === 'benefit' && r.benefitType === 'free_gift');
-    
+
     if (giftBenefitRules.length === 0) {
       return { eligible: false, freeGifts: [] };
     }
@@ -493,14 +514,14 @@ export class PromotionEngine {
 
     // For multi-tier promotions, select the highest qualifying tier
     const qualifyingTiers = await this.selectHighestQualifyingGiftTier(giftBenefitRules, context);
-    
+
     if (!qualifyingTiers.selectedTier) {
       return { eligible: false, freeGifts: [] };
     }
 
     // Calculate gifts for the selected tier with inventory validation
     const freeGifts = await this.calculateFreeGifts(qualifyingTiers.selectedTier, context);
-    
+
     // If no gifts are available due to inventory, promotion is not eligible
     if (freeGifts.length === 0) {
       return { eligible: false, freeGifts: [] };
@@ -553,7 +574,7 @@ export class PromotionEngine {
     // For gift tiers, the threshold is typically stored in numericValue
     // This represents the minimum cart value for this tier
     const threshold = tier.numericValue || 0;
-    
+
     // Check if cart meets the threshold for this tier
     if (context.cartSubtotal < threshold) {
       return false;
@@ -594,7 +615,7 @@ export class PromotionEngine {
 
     // Apply promotion selection algorithm
     const selectionResult = await this.applyPromotionSelectionAlgorithm(eligiblePromotions);
-    
+
     return selectionResult;
   }
 
@@ -606,7 +627,7 @@ export class PromotionEngine {
   ): Promise<{ selectedPromotion?: AppliedPromotion; conflictResolution?: ConflictResolution }> {
     // Step 1: Check for exclusivity conflicts
     const conflictingPromotions = await this.findExclusivityConflicts(eligiblePromotions);
-    
+
     // Step 2: Filter out conflicting promotions if any exist
     let candidatePromotions = eligiblePromotions;
     if (conflictingPromotions.length > 0) {
@@ -631,8 +652,8 @@ export class PromotionEngine {
         appliedAt: new Date(),
       },
       conflictResolution: {
-        conflictType: conflictingPromotions.length > 0 ? 'exclusivity' : 
-                     priorityOrderedPromotions[0]?.priority !== priorityOrderedPromotions[1]?.priority ? 'priority' : 'customer_benefit',
+        conflictType: conflictingPromotions.length > 0 ? 'exclusivity' :
+          priorityOrderedPromotions[0]?.priority !== priorityOrderedPromotions[1]?.priority ? 'priority' : 'customer_benefit',
         selectedPromotionId: selectedPromotion.promotion.id,
         rejectedPromotionIds: rejectedPromotions.map(p => p.promotion.id),
         reason: this.generateConflictResolutionReason(conflictingPromotions.length > 0, selectedPromotion, rejectedPromotions),
@@ -650,7 +671,7 @@ export class PromotionEngine {
     const nonConflictingPromotions = eligiblePromotions.filter(
       p => !conflictingPromotionIds.includes(p.promotion.id)
     );
-    
+
     const conflictingPromotions = eligiblePromotions.filter(
       p => conflictingPromotionIds.includes(p.promotion.id)
     );
@@ -690,11 +711,11 @@ export class PromotionEngine {
       if (a.priority !== b.priority) {
         return b.priority - a.priority;
       }
-      
+
       // Within same priority, sort by customer benefit (highest first)
       const benefitA = this.calculateTotalCustomerBenefit(a);
       const benefitB = this.calculateTotalCustomerBenefit(b);
-      
+
       if (benefitA !== benefitB) {
         return benefitB - benefitA;
       }
@@ -738,7 +759,7 @@ export class PromotionEngine {
    */
   private async findExclusivityConflicts(eligiblePromotions: EligiblePromotion[]): Promise<string[]> {
     const conflictingPromotions: string[] = [];
-    
+
     for (let i = 0; i < eligiblePromotions.length; i++) {
       for (let j = i + 1; j < eligiblePromotions.length; j++) {
         const conflicts = await promotionRepository.checkPromotionConflicts(
@@ -846,7 +867,7 @@ export class PromotionEngine {
       // For percentage discounts, recalculate to verify accuracy
       const expectedDiscount = Math.round((applicableSubtotal * benefitValue) / 100);
       const tolerance = Math.max(1, Math.round(expectedDiscount * 0.01)); // 1% tolerance or 1 cent minimum
-      
+
       if (Math.abs(calculatedDiscount - expectedDiscount) > tolerance) {
         throw new ValidationError(
           `Percentage discount calculation mismatch. Expected: ${expectedDiscount}, Got: ${calculatedDiscount}`
@@ -907,7 +928,7 @@ export class PromotionEngine {
   ): Promise<void> {
     for (const appliedPromotion of appliedPromotions) {
       const promotion = await promotionRepository.getPromotionById(appliedPromotion.promotionId);
-      
+
       if (!promotion) {
         throw new NotFoundError(`Promotion ${appliedPromotion.promotionId} not found`);
       }
