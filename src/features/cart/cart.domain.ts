@@ -243,7 +243,7 @@ export class CartDomain {
     }
 
     // Calculate total discount amount (promotional + discount code)
-    const totalDiscountAmount = promotionResult.totalDiscount + discountCodeAmount;
+    const totalDiscountAmount = discountCodeAmount;
 
     // Calculate total
     const totalAmount = subtotal + shippingCost - totalDiscountAmount;

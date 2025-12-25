@@ -126,8 +126,24 @@ export class PromotionEngine {
     promotion: Promotion,
     context: PromotionEvaluationContext
   ): Promise<EligiblePromotion | null> {
+    const { logger } = await import('../../core/logger');
+
+    logger.debug({
+      promotionId: promotion.id,
+      promotionName: promotion.name,
+      promotionStatus: promotion.status,
+    }, 'Evaluating promotion eligibility');
+
     // Check if promotion is active and within time bounds
     if (!this.isPromotionActive(promotion)) {
+      logger.debug({
+        promotionId: promotion.id,
+        reason: 'NOT_ACTIVE',
+        status: promotion.status,
+        startsAt: promotion.startsAt,
+        endsAt: promotion.endsAt,
+        now: new Date(),
+      }, 'Promotion not eligible: not active');
       return null;
     }
 
@@ -136,7 +152,12 @@ export class PromotionEngine {
       try {
         await this.validateUsageLimits(promotion, context.customerId);
       } catch (error) {
-        // Usage limit exceeded, promotion not eligible
+        logger.debug({
+          promotionId: promotion.id,
+          customerId: context.customerId,
+          reason: 'USAGE_LIMIT_EXCEEDED',
+          error: error instanceof Error ? error.message : 'Unknown',
+        }, 'Promotion not eligible: usage limit exceeded');
         return null;
       }
     }
@@ -146,9 +167,32 @@ export class PromotionEngine {
     const conditionRules = rules.filter(r => r.ruleType === 'condition');
     const benefitRules = rules.filter(r => r.ruleType === 'benefit');
 
+    logger.debug({
+      promotionId: promotion.id,
+      totalRules: rules.length,
+      conditionRulesCount: conditionRules.length,
+      benefitRulesCount: benefitRules.length,
+    }, 'Promotion rules loaded');
+
     // Check all conditions must be met
     for (const condition of conditionRules) {
-      if (!this.evaluateCondition(condition, context)) {
+      const conditionMet = this.evaluateCondition(condition, context);
+      logger.debug({
+        promotionId: promotion.id,
+        conditionType: condition.conditionType,
+        operator: condition.operator,
+        numericValue: condition.numericValue,
+        jsonValue: condition.jsonValue,
+        conditionMet,
+        cartSubtotal: context.cartSubtotal,
+      }, 'Condition evaluation result');
+
+      if (!conditionMet) {
+        logger.debug({
+          promotionId: promotion.id,
+          reason: 'CONDITION_NOT_MET',
+          conditionType: condition.conditionType,
+        }, 'Promotion not eligible: condition not met');
         return null; // Promotion not eligible
       }
     }
@@ -161,6 +205,12 @@ export class PromotionEngine {
 
     // Perform additional validation for high-value promotions
     this.validateHighValuePromotion(promotion, potentialDiscount, context);
+
+    logger.debug({
+      promotionId: promotion.id,
+      potentialDiscount,
+      potentialGiftsCount: potentialGifts.length,
+    }, 'Promotion eligible with potential benefits');
 
     return {
       promotion,

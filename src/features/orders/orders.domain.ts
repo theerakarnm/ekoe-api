@@ -116,7 +116,7 @@ export class OrdersDomain {
   }
 
   /**
-   * Calculate order pricing with discount and shipping method support
+   * Calculate order pricing with discount, shipping method, and auto promotion support
    */
   private async calculateOrderPricing(
     items: Array<{ productId: string; variantId?: string; quantity: number }>,
@@ -128,8 +128,11 @@ export class OrdersDomain {
     shippingCost: number;
     taxAmount: number;
     discountAmount: number;
+    promotionDiscountAmount: number;
     totalAmount: number;
     discountCodeId?: string;
+    appliedPromotions: AppliedPromotion[];
+    promotionalGifts: PromotionFreeGift[];
     items: Array<{
       productId: string;
       variantId?: string;
@@ -245,6 +248,73 @@ export class OrdersDomain {
       }
     }
 
+    // Evaluate auto promotions using promotionEngine
+    let promotionDiscountAmount = 0;
+    let appliedPromotions: AppliedPromotion[] = [];
+    let promotionalGifts: PromotionFreeGift[] = [];
+
+    try {
+      // Build evaluation context for promotions (matching evaluateCartWithPromotions pattern)
+      const cartItems = processedItems.map(item => ({
+        productId: item.productId,
+        variantId: item.variantId,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        subtotal: item.subtotal,
+        categoryIds: [], // TODO: Add category information if needed
+      }));
+
+      const evaluationContext = {
+        cartSubtotal: subtotal,
+        cartItems,
+        customerId: userId,
+      };
+
+      logger.info({
+        evaluationContext: {
+          cartSubtotal: evaluationContext.cartSubtotal,
+          cartItemsCount: evaluationContext.cartItems.length,
+          cartItems: evaluationContext.cartItems,
+          customerId: evaluationContext.customerId,
+        }
+      }, 'Evaluating auto promotions in calculateOrderPricing');
+
+      // Debug: Get active promotions to see if any exist
+      const { promotionRepository } = await import('../promotions/promotions.repository');
+      const activePromotions = await promotionRepository.getActivePromotions();
+      console.log('Active promotions count:', activePromotions.length);
+      console.log('Active promotions:', activePromotions.map(p => ({ id: p.id, name: p.name, status: p.status, startsAt: p.startsAt, endsAt: p.endsAt })));
+
+      // Evaluate active promotions
+      const promotionResult = await promotionEngine.evaluatePromotions(evaluationContext);
+
+      console.dir({ promotionResult }, { depth: null })
+
+      logger.info({
+        eligiblePromotionsCount: promotionResult.eligiblePromotions?.length || 0,
+        selectedPromotion: promotionResult.selectedPromotion ? {
+          id: promotionResult.selectedPromotion.promotionId,
+          name: promotionResult.selectedPromotion.promotionName,
+          discountAmount: promotionResult.selectedPromotion.discountAmount,
+        } : null,
+        totalDiscount: promotionResult.totalDiscount,
+        freeGiftsCount: promotionResult.freeGifts?.length || 0,
+      }, 'Auto promotion evaluation result in calculateOrderPricing');
+
+      // Apply selected promotion
+      if (promotionResult.selectedPromotion) {
+        promotionDiscountAmount = promotionResult.selectedPromotion.discountAmount;
+        appliedPromotions = [{
+          ...promotionResult.selectedPromotion,
+          appliedAt: new Date(),
+        }];
+        promotionalGifts = promotionResult.selectedPromotion.freeGifts || [];
+      }
+    } catch (error) {
+      // Log error but continue without promotions
+      logger.error({ error }, 'Failed to evaluate auto promotions in calculateOrderPricing, continuing without');
+    }
+
     // Calculate shipping cost based on selected method
     const method = shippingMethod || 'standard';
 
@@ -269,18 +339,31 @@ export class OrdersDomain {
     }
 
     // Calculate tax (7% VAT)
-    const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
+    const taxAmount = 0;
 
-    // Calculate total
-    const totalAmount = subtotal + shippingCost + taxAmount - discountAmount;
+    // Calculate total (including promotion discount)
+    const totalAmount = subtotal + shippingCost + taxAmount - discountAmount - promotionDiscountAmount;
+
+    logger.info({
+      subtotal,
+      shippingCost,
+      taxAmount,
+      discountAmount,
+      promotionDiscountAmount,
+      totalAmount,
+      appliedPromotionsCount: appliedPromotions.length,
+    }, 'Order pricing calculation complete with auto promotions');
 
     return {
       subtotal,
       shippingCost,
       taxAmount,
       discountAmount,
+      promotionDiscountAmount,
       totalAmount,
       discountCodeId,
+      appliedPromotions,
+      promotionalGifts,
       items: processedItems,
     };
   }
@@ -340,23 +423,30 @@ export class OrdersDomain {
       }
     }
 
-    // Process applied promotions and record usage
-    let promotionDiscountAmount = 0;
-    const appliedPromotions = (data.appliedPromotions || []).map(p => ({
-      ...p,
-      appliedAt: new Date(), // Add missing appliedAt
-    })) as AppliedPromotion[];
+    // Use promotions already calculated in calculateOrderPricing, or use provided ones for backward compatibility
+    let appliedPromotions: AppliedPromotion[] = orderData.appliedPromotions;
+    let promotionDiscountAmount = orderData.promotionDiscountAmount;
+    let allPromotionalGifts: PromotionFreeGift[] = orderData.promotionalGifts;
+
+    // If client provided applied promotions, use those instead (backward compatibility)
+    if (data.appliedPromotions && data.appliedPromotions.length > 0) {
+      appliedPromotions = (data.appliedPromotions).map((p: any) => ({
+        ...p,
+        appliedAt: new Date(),
+      })) as AppliedPromotion[];
+
+      // Recalculate promotion discount from provided promotions
+      promotionDiscountAmount = 0;
+      allPromotionalGifts = [];
+      for (const promotion of appliedPromotions) {
+        promotionDiscountAmount += promotion.discountAmount;
+        allPromotionalGifts.push(...promotion.freeGifts);
+      }
+    }
 
     // Validate and enforce usage limits before order creation
     if (appliedPromotions.length > 0) {
       await promotionEngine.validateAndEnforceUsageLimits(appliedPromotions, userId);
-    }
-
-    // Calculate total promotion discount and collect promotional gifts
-    const allPromotionalGifts: PromotionFreeGift[] = [];
-    for (const promotion of appliedPromotions) {
-      promotionDiscountAmount += promotion.discountAmount;
-      allPromotionalGifts.push(...promotion.freeGifts);
     }
 
     // Add promotional gift items to the order items
@@ -388,10 +478,24 @@ export class OrdersDomain {
       });
     }
 
+    // Use the totalAmount from calculateOrderPricing which already includes promotion discount
+    // If client provided promotions, we need to recalculate
+    const finalTotalAmount = data.appliedPromotions && data.appliedPromotions.length > 0
+      ? orderData.subtotal + orderData.shippingCost + orderData.taxAmount - orderData.discountAmount - promotionDiscountAmount
+      : orderData.totalAmount;
+
+    logger.info({
+      originalTotalAmount: orderData.totalAmount,
+      promotionDiscountAmount,
+      finalTotalAmount,
+      appliedPromotionsCount: appliedPromotions.length,
+    }, 'Order total calculation with promotion discount');
+
     // Create order with transaction
     const order = await ordersRepository.createOrder(data, {
       orderNumber,
       ...orderData,
+      totalAmount: finalTotalAmount, // Override with promotion-adjusted total
       items: enhancedItems,
       eligibleGifts,
       appliedPromotions,
