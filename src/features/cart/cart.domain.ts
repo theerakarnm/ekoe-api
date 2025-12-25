@@ -245,16 +245,13 @@ export class CartDomain {
     // Calculate total discount amount (promotional + discount code)
     const totalDiscountAmount = promotionResult.totalDiscount + discountCodeAmount;
 
-    // Calculate tax (7% VAT)
-    const taxAmount = Math.round((subtotal + shippingCost) * 0.07);
-
     // Calculate total
-    const totalAmount = subtotal + shippingCost + taxAmount - totalDiscountAmount;
+    const totalAmount = subtotal + shippingCost - totalDiscountAmount;
 
     return {
       subtotal,
       shippingCost,
-      taxAmount,
+      taxAmount: 0,
       discountAmount: totalDiscountAmount,
       totalAmount,
       discount: appliedDiscount,
