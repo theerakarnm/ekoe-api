@@ -279,16 +279,8 @@ export class OrdersDomain {
         }
       }, 'Evaluating auto promotions in calculateOrderPricing');
 
-      // Debug: Get active promotions to see if any exist
-      const { promotionRepository } = await import('../promotions/promotions.repository');
-      const activePromotions = await promotionRepository.getActivePromotions();
-      console.log('Active promotions count:', activePromotions.length);
-      console.log('Active promotions:', activePromotions.map(p => ({ id: p.id, name: p.name, status: p.status, startsAt: p.startsAt, endsAt: p.endsAt })));
-
       // Evaluate active promotions
       const promotionResult = await promotionEngine.evaluatePromotions(evaluationContext);
-
-      console.dir({ promotionResult }, { depth: null })
 
       logger.info({
         eligiblePromotionsCount: promotionResult.eligiblePromotions?.length || 0,
