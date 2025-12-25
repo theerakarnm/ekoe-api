@@ -31,6 +31,10 @@ export const discountCodes = pgTable("discount_codes", {
   // Status
   isActive: boolean("is_active").default(true),
 
+  // Feature settings
+  isFeatured: boolean("is_featured").default(false), // Featured coupon appears in welcome popup
+  linkedProductIds: jsonb("linked_product_ids"), // Array of product IDs where coupon appears on product detail page
+
   // Validity period
   startsAt: timestamp("starts_at"),
   expiresAt: timestamp("expires_at"),

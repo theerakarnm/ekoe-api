@@ -32,6 +32,20 @@ export class CouponsDomain {
   async getCouponUsageStats(id: string) {
     return await couponsRepository.getUsageStats(id);
   }
+
+  /**
+   * Get the featured coupon for welcome popup
+   */
+  async getFeaturedCoupon() {
+    return await couponsRepository.findFeatured();
+  }
+
+  /**
+   * Get coupons linked to a specific product
+   */
+  async getCouponsByProductId(productId: string) {
+    return await couponsRepository.findByProductId(productId);
+  }
 }
 
 export const couponsDomain = new CouponsDomain();

@@ -13,6 +13,8 @@ export const createCouponSchema = z.object({
   applicableToProducts: z.array(z.string()).optional(),
   applicableToCategories: z.array(z.string()).optional(),
   isActive: z.boolean().default(true),
+  isFeatured: z.boolean().default(false), // Featured coupon appears in welcome popup
+  linkedProductIds: z.array(z.string()).optional(), // Product IDs where coupon appears on detail page
   startsAt: z.string().optional(),
   expiresAt: z.string().optional(),
 });

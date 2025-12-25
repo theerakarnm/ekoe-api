@@ -190,6 +190,63 @@ export class CouponsRepository {
       averageOrderValue: Number(orderStats[0]?.averageOrderValue || 0),
     };
   }
+
+  /**
+   * Find the featured coupon for welcome popup
+   * Returns the first active, valid featured coupon
+   */
+  async findFeatured() {
+    const now = new Date();
+
+    const result = await db
+      .select()
+      .from(discountCodes)
+      .where(
+        and(
+          eq(discountCodes.isFeatured, true),
+          eq(discountCodes.isActive, true),
+          or(
+            sql`${discountCodes.startsAt} IS NULL`,
+            lte(discountCodes.startsAt, now)
+          ),
+          or(
+            sql`${discountCodes.expiresAt} IS NULL`,
+            gte(discountCodes.expiresAt, now)
+          )
+        )
+      )
+      .limit(1);
+
+    return result[0] || null;
+  }
+
+  /**
+   * Find coupons linked to a specific product
+   * Returns active, valid coupons that have the product in linkedProductIds
+   */
+  async findByProductId(productId: string) {
+    const now = new Date();
+
+    const result = await db
+      .select()
+      .from(discountCodes)
+      .where(
+        and(
+          eq(discountCodes.isActive, true),
+          sql`${discountCodes.linkedProductIds} @> ${JSON.stringify([productId])}::jsonb`,
+          or(
+            sql`${discountCodes.startsAt} IS NULL`,
+            lte(discountCodes.startsAt, now)
+          ),
+          or(
+            sql`${discountCodes.expiresAt} IS NULL`,
+            gte(discountCodes.expiresAt, now)
+          )
+        )
+      );
+
+    return result;
+  }
 }
 
 export const couponsRepository = new CouponsRepository();
