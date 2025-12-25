@@ -153,9 +153,26 @@ export class PromotionSecurity {
     const rules = await promotionRepository.getPromotionRules(promotion.id);
     const benefitRules = rules.filter(r => r.ruleType === 'benefit');
 
+    // Filter out free_gift rules - they don't contribute to discount calculation
+    const discountBenefitRules = benefitRules.filter(r =>
+      r.benefitType === 'percentage_discount' || r.benefitType === 'fixed_discount'
+    );
+
+    // If there are no discount benefit rules, skip discount validation
+    // (e.g., free_gift only promotions)
+    if (discountBenefitRules.length === 0) {
+      // Only validate that applied discount is 0 for gift-only promotions
+      if (appliedPromotion.discountAmount !== 0) {
+        throw new ValidationError(
+          `Gift-only promotion should have 0 discount, got: ${appliedPromotion.discountAmount}`
+        );
+      }
+      return;
+    }
+
     let expectedDiscount = 0;
 
-    for (const benefit of benefitRules) {
+    for (const benefit of discountBenefitRules) {
       switch (benefit.benefitType) {
         case 'percentage_discount':
           expectedDiscount += this.calculateExpectedPercentageDiscount(benefit, context);
@@ -167,7 +184,7 @@ export class PromotionSecurity {
     }
 
     // Apply discount capping
-    expectedDiscount = this.applySecurityDiscountCapping(expectedDiscount, benefitRules[0], context);
+    expectedDiscount = this.applySecurityDiscountCapping(expectedDiscount, discountBenefitRules[0], context);
 
     // Validate calculated discount matches expected
     const discountDifference = Math.abs(expectedDiscount - appliedPromotion.discountAmount);
@@ -295,18 +312,32 @@ export class PromotionSecurity {
 
   /**
    * Validate individual free gift
+   * Supports both product-based gifts and standalone admin-created gifts
    */
   private async validateFreeGift(gift: FreeGift, promotion: Promotion): Promise<void> {
-    if (!gift.productId) {
-      throw new ValidationError('Free gift must have valid product ID');
-    }
-
+    // Validate quantity for all gift types
     if (typeof gift.quantity !== 'number' || gift.quantity <= 0 || !Number.isInteger(gift.quantity)) {
       throw new ValidationError(`Invalid gift quantity: ${gift.quantity}`);
     }
 
     if (gift.quantity > 5) { // Reasonable limit per gift
       throw new ValidationError(`Excessive quantity for single gift: ${gift.quantity}`);
+    }
+
+    // Case 1: Standalone admin-created gift (no productId but has name)
+    // These are gifts created in admin with just name and image, not linked to a product
+    if (!gift.productId && gift.name) {
+      // Validate the gift has required fields for display
+      if (typeof gift.name !== 'string' || gift.name.trim().length === 0) {
+        throw new ValidationError('Standalone gift must have a valid name');
+      }
+      // Standalone gifts are valid without inventory check
+      return;
+    }
+
+    // Case 2: Product-based gift - must have valid productId
+    if (!gift.productId) {
+      throw new ValidationError('Free gift must have valid product ID or name');
     }
 
     // Validate gift product exists and is available
@@ -326,6 +357,7 @@ export class PromotionSecurity {
 
   /**
    * Validate gifts match promotion rules
+   * Supports both product-based gifts and standalone admin-created gifts
    */
   private async validateGiftsMatchPromotionRules(
     gifts: FreeGift[],
@@ -344,8 +376,16 @@ export class PromotionSecurity {
       let giftAllowed = false;
 
       for (const rule of giftBenefitRules) {
-        if (rule.giftProductIds && rule.giftProductIds.includes(gift.productId!)) {
-          // Check if cart qualifies for this gift tier
+        // Case 1: Standalone admin-created gift (matches by name)
+        if (!gift.productId && gift.name && rule.giftName === gift.name) {
+          if (await this.validateGiftTierQualification(rule, context)) {
+            giftAllowed = true;
+            break;
+          }
+        }
+
+        // Case 2: Product-based gift (matches by productId)
+        if (gift.productId && rule.giftProductIds && rule.giftProductIds.includes(gift.productId)) {
           if (await this.validateGiftTierQualification(rule, context)) {
             giftAllowed = true;
             break;
@@ -354,7 +394,7 @@ export class PromotionSecurity {
       }
 
       if (!giftAllowed) {
-        throw new ValidationError(`Gift product ${gift.productId} is not allowed by promotion rules`);
+        throw new ValidationError(`Gift "${gift.name || gift.productId}" is not allowed by promotion rules`);
       }
     }
   }

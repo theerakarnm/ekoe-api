@@ -414,6 +414,7 @@ promotions.post('/:id/rules', requireAdminAuth, zValidator('json', z.array(creat
     const user = c.get('user');
 
     // Convert null values to undefined for type compatibility
+    // Also convert monetary values to cents (satang) for storage
     const rules = rawRules.map(rule => ({
       ruleType: rule.ruleType,
       conditionType: rule.conditionType ?? undefined,
@@ -422,14 +423,17 @@ promotions.post('/:id/rules', requireAdminAuth, zValidator('json', z.array(creat
       textValue: rule.textValue ?? undefined,
       jsonValue: rule.jsonValue ?? undefined,
       benefitType: rule.benefitType ?? undefined,
-      benefitValue: rule.benefitValue ?? undefined,
-      maxDiscountAmount: rule.maxDiscountAmount ?? undefined,
+      // Convert benefitValue to cents for fixed_discount types
+      benefitValue: rule.benefitValue != null
+        ? (rule.benefitType === 'fixed_discount' ? rule.benefitValue * 100 : rule.benefitValue)
+        : undefined,
+      maxDiscountAmount: rule.maxDiscountAmount != null ? rule.maxDiscountAmount * 100 : undefined,
       applicableProductIds: rule.applicableProductIds ?? undefined,
       applicableCategoryIds: rule.applicableCategoryIds ?? undefined,
       giftProductIds: rule.giftProductIds ?? undefined,
       giftQuantities: rule.giftQuantities ?? undefined,
       giftName: rule.giftName ?? undefined,
-      giftPrice: rule.giftPrice ?? undefined,
+      giftPrice: rule.giftPrice != null ? rule.giftPrice * 100 : undefined,
       giftImageUrl: rule.giftImageUrl ?? undefined,
       giftQuantity: rule.giftQuantity ?? undefined,
     }));

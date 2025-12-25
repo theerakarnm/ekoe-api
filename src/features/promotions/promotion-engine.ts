@@ -54,18 +54,12 @@ export class PromotionEngine {
     // Evaluate each promotion for eligibility
     const eligiblePromotions: EligiblePromotion[] = [];
 
-    console.dir({ activePromotions }, { depth: null });
-
-
     for (const promotion of activePromotions) {
       const eligibility = await this.evaluatePromotionEligibility(promotion, context);
       if (eligibility) {
         eligiblePromotions.push(eligibility);
       }
     }
-
-    console.dir({ eligiblePromotions }, { depth: null });
-
 
     if (eligiblePromotions.length === 0) {
       return {
@@ -325,6 +319,7 @@ export class PromotionEngine {
 
   /**
    * Calculate potential benefits from benefit rules
+   * For free gifts, only the highest qualifying tier is selected (not all)
    */
   private async calculatePotentialBenefits(
     benefitRules: PromotionRule[],
@@ -333,7 +328,12 @@ export class PromotionEngine {
     let potentialDiscount = 0;
     const potentialGifts: FreeGift[] = [];
 
-    for (const benefit of benefitRules) {
+    // Separate discount rules from gift rules
+    const discountRules = benefitRules.filter(r => r.benefitType !== 'free_gift');
+    const giftRules = benefitRules.filter(r => r.benefitType === 'free_gift');
+
+    // Process discount rules (all applicable discounts are summed)
+    for (const benefit of discountRules) {
       switch (benefit.benefitType) {
         case 'percentage_discount':
           potentialDiscount += this.calculatePercentageDiscount(benefit, context);
@@ -342,11 +342,16 @@ export class PromotionEngine {
         case 'fixed_discount':
           potentialDiscount += this.calculateFixedDiscount(benefit, context);
           break;
+      }
+    }
 
-        case 'free_gift':
-          const gifts = await this.calculateFreeGifts(benefit, context);
-          potentialGifts.push(...gifts);
-          break;
+    // For gift rules, select only the highest qualifying tier (not all)
+    if (giftRules.length > 0) {
+      const { selectedTier } = await this.selectHighestQualifyingGiftTier(giftRules, context);
+
+      if (selectedTier) {
+        const gifts = await this.calculateFreeGifts(selectedTier, context);
+        potentialGifts.push(...gifts);
       }
     }
 
@@ -373,7 +378,7 @@ export class PromotionEngine {
     discount = this.applyDiscountCapping(discount, benefit.maxDiscountAmount, applicableSubtotal);
 
     // Server-side validation to prevent manipulation
-    this.validateDiscountCalculation(discount, applicableSubtotal, percentage, 'percentage');
+    this.validateDiscountCalculation(discount, applicableSubtotal, percentage, 'percentage', benefit.maxDiscountAmount);
 
     return discount;
   }
@@ -398,7 +403,7 @@ export class PromotionEngine {
     discount = this.applyDiscountCapping(discount, benefit.maxDiscountAmount, applicableSubtotal);
 
     // Server-side validation to prevent manipulation
-    this.validateDiscountCalculation(discount, applicableSubtotal, fixedAmount, 'fixed');
+    this.validateDiscountCalculation(discount, applicableSubtotal, fixedAmount, 'fixed', benefit.maxDiscountAmount);
 
     return discount;
   }
@@ -848,7 +853,8 @@ export class PromotionEngine {
     calculatedDiscount: number,
     applicableSubtotal: number,
     benefitValue: number,
-    discountType: 'percentage' | 'fixed'
+    discountType: 'percentage' | 'fixed',
+    maxDiscountAmount?: number
   ): void {
     // Validate discount doesn't exceed applicable subtotal
     if (calculatedDiscount > applicableSubtotal) {
@@ -865,7 +871,18 @@ export class PromotionEngine {
     // Type-specific validations
     if (discountType === 'percentage') {
       // For percentage discounts, recalculate to verify accuracy
-      const expectedDiscount = Math.round((applicableSubtotal * benefitValue) / 100);
+      let expectedDiscount = Math.round((applicableSubtotal * benefitValue) / 100);
+
+      // Account for max discount capping
+      if (maxDiscountAmount && maxDiscountAmount > 0 && expectedDiscount > maxDiscountAmount) {
+        expectedDiscount = maxDiscountAmount;
+      }
+
+      // Account for subtotal capping
+      if (expectedDiscount > applicableSubtotal) {
+        expectedDiscount = applicableSubtotal;
+      }
+
       const tolerance = Math.max(1, Math.round(expectedDiscount * 0.01)); // 1% tolerance or 1 cent minimum
 
       if (Math.abs(calculatedDiscount - expectedDiscount) > tolerance) {
