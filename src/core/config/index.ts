@@ -33,6 +33,12 @@ export const config = {
     url: process.env.WEB_URL || 'http://localhost:5173',
   },
   env: process.env.NODE_ENV || 'development',
+  cors: {
+    origin: process.env.CORS_ORIGIN?.split(',') || ['http://localhost:5173'],
+    allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowHeaders: ["Content-Type", "Authorization", "User-Agent", "Accept", "Origin", "X-Requested-With"],
+    credentials: true,
+  }
 };
 
 // Export payment configuration module

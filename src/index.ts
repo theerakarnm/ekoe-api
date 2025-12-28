@@ -27,13 +27,13 @@ const app = new Hono();
 // Global Middleware
 app.use('*', loggerMiddleware);
 app.use('*', cors({
-  origin: ['http://localhost:3000', 'http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev'], // Frontend URLs
-  allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowHeaders: ["Content-Type", "Authorization", "User-Agent", "Accept", "Origin", "X-Requested-With"],
-  credentials: true,
+  origin: config.cors.origin,
+  allowMethods: config.cors.allowMethods,
+  allowHeaders: config.cors.allowHeaders,
+  credentials: config.cors.credentials,
 }));
 app.use('*', securityHeaders);
-app.use('*', validateOrigin(['http://localhost:3000', 'http://localhost:5173', 'https://qas-ekoe.theerakarnm.dev']));
+app.use('*', validateOrigin(config.cors.origin));
 app.use('*', errorMiddleware);
 
 // Error Handler
