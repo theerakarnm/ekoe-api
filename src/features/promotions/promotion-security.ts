@@ -681,16 +681,20 @@ export class PromotionSecurity {
       throw new ValidationError('Unrealistic cart values detected - possible tampering');
     }
 
-    // Check for duplicate products with different prices
-    const productPrices = new Map<string, number>();
+    // Check for duplicate products/variants with different prices
+    // Use variantId when available (different variants can have different prices)
+    const itemPrices = new Map<string, number>();
     for (const item of context.cartItems) {
-      const existingPrice = productPrices.get(item.productId);
+      // Use variantId if available, otherwise fallback to productId
+      // This allows different variants of the same product to have different prices
+      const itemKey = item.variantId || item.productId;
+      const existingPrice = itemPrices.get(itemKey);
       if (existingPrice && Math.abs(existingPrice - item.unitPrice) > this.CALCULATION_TOLERANCE) {
         throw new ValidationError(
-          `Inconsistent pricing detected for product ${item.productId}: ${existingPrice} vs ${item.unitPrice}`
+          `Inconsistent pricing detected for item ${itemKey}: ${existingPrice} vs ${item.unitPrice}`
         );
       }
-      productPrices.set(item.productId, item.unitPrice);
+      itemPrices.set(itemKey, item.unitPrice);
     }
   }
 }

@@ -385,13 +385,26 @@ export class PromotionDomain {
    */
   private validateActivePromotionUpdate(data: Partial<UpdatePromotionDto>): void {
     const restrictedFields = ['type', 'startsAt'];
+    const modifiedRestrictedFields: string[] = [];
 
     for (const field of restrictedFields) {
       if (data[field as keyof UpdatePromotionDto] !== undefined) {
-        throw new ConflictError(`Cannot modify ${field} of an active promotion`);
+        modifiedRestrictedFields.push(field);
       }
     }
+
+    if (modifiedRestrictedFields.length > 0) {
+      const fieldNames = modifiedRestrictedFields.map(f =>
+        f === 'type' ? 'ประเภทโปรโมชั่น' :
+          f === 'startsAt' ? 'วันที่เริ่มต้น' : f
+      ).join(', ');
+
+      throw new ConflictError(
+        `ไม่สามารถแก้ไข ${fieldNames} ได้ขณะที่โปรโมชั่นกำลังใช้งานอยู่ กรุณาหยุดโปรโมชั่น (Pause) ก่อนทำการแก้ไข`
+      );
+    }
   }
+
 
   /**
    * Validate promotion rules
