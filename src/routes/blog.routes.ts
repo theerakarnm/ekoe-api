@@ -9,8 +9,8 @@ blogRoutes.get('/', async (c) => {
   const page = Number(c.req.query('page') || '1');
   const limit = Number(c.req.query('limit') || '12'); // Default 12 for grid
   const search = c.req.query('search');
-  const sortBy = c.req.query('sortBy') || 'publishedAt'; // meaningful default for public
-  const sortOrder = (c.req.query('sortOrder') || 'desc') as 'asc' | 'desc';
+  const sortBy = c.req.query('sortBy') || 'sortOrder'; // Default to admin-controlled sequence
+  const sortOrder = (c.req.query('sortOrder') || 'asc') as 'asc' | 'desc';
 
   const result = await blogDomain.getAllBlogPosts({
     page,

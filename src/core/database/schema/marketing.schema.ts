@@ -89,6 +89,9 @@ export const blogPosts = pgTable("blog_posts", {
   // Stats
   viewCount: integer("view_count").default(0),
 
+  // Display ordering for admin-controlled sequence
+  sortOrder: integer("sort_order").default(0),
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   publishedAt: timestamp("published_at"),

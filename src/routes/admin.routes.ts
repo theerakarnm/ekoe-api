@@ -6,7 +6,7 @@ import { productsDomain } from '../features/products/products.domain';
 import { productsRepository } from '../features/products/products.repository';
 import { createProductSchema, updateProductSchema, bulkUpdateSortOrderSchema, updateSingleSortOrderSchema } from '../features/products/products.interface';
 import { blogDomain } from '../features/blog/blog.domain';
-import { createBlogPostSchema, updateBlogPostSchema } from '../features/blog/blog.interface';
+import { createBlogPostSchema, updateBlogPostSchema, bulkUpdateBlogSortOrderSchema, updateSingleBlogSortOrderSchema } from '../features/blog/blog.interface';
 import { couponsDomain } from '../features/coupons/coupons.domain';
 import { createCouponSchema, updateCouponSchema } from '../features/coupons/coupons.interface';
 import { analyticsDomain } from '../features/analytics/analytics.domain';
@@ -249,6 +249,21 @@ adminRoutes.delete('/blog/:id', requireAdminAuth, async (c) => {
   const id = c.req.param('id');
   await blogDomain.deleteBlogPost(id);
   return ResponseBuilder.noContent(c);
+});
+
+// Bulk update blog sequences (for drag-and-drop reordering)
+adminRoutes.patch('/blog/sequences', requireAdminAuth, validateJson(bulkUpdateBlogSortOrderSchema), async (c) => {
+  const { updates } = await c.req.json();
+  const result = await blogDomain.bulkUpdateBlogSequences(updates);
+  return ResponseBuilder.success(c, { updated: result.length });
+});
+
+// Update single blog sequence
+adminRoutes.patch('/blog/:id/sequence', requireAdminAuth, validateJson(updateSingleBlogSortOrderSchema), async (c) => {
+  const id = c.req.param('id');
+  const { sortOrder } = await c.req.json();
+  const post = await blogDomain.updateBlogSortOrder(id, sortOrder);
+  return ResponseBuilder.success(c, post);
 });
 
 // Coupon CRUD endpoints

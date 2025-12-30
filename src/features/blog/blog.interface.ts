@@ -112,3 +112,21 @@ export function generateTableOfContents(blocks: ContentBlock[]): TableOfContents
       text: block.content,
     }));
 }
+
+// ============================================================================
+// Bulk Sequence Update Schemas
+// ============================================================================
+
+export const bulkUpdateBlogSortOrderSchema = z.object({
+  updates: z.array(z.object({
+    blogId: z.string(),
+    sortOrder: z.number().int().min(0),
+  })).min(1),
+});
+
+export const updateSingleBlogSortOrderSchema = z.object({
+  sortOrder: z.number().int().min(0),
+});
+
+export type BulkUpdateBlogSortOrderInput = z.infer<typeof bulkUpdateBlogSortOrderSchema>;
+export type UpdateSingleBlogSortOrderInput = z.infer<typeof updateSingleBlogSortOrderSchema>;

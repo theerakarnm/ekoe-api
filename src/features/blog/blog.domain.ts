@@ -65,6 +65,34 @@ export class BlogDomain {
   async deleteBlogPost(id: string) {
     return await blogRepository.softDelete(id);
   }
+
+  /**
+   * Update a single blog post's sort order
+   */
+  async updateBlogSortOrder(id: string, sortOrder: number) {
+    if (sortOrder < 0) {
+      throw new Error('Sort order must be a non-negative number');
+    }
+    return await blogRepository.updateSortOrder(id, sortOrder);
+  }
+
+  /**
+   * Bulk update blog post sort orders (for drag-and-drop reordering)
+   */
+  async bulkUpdateBlogSequences(updates: { blogId: string; sortOrder: number }[]) {
+    if (!updates || updates.length === 0) {
+      throw new Error('No updates provided');
+    }
+
+    // Validate all sort orders are non-negative
+    for (const update of updates) {
+      if (update.sortOrder < 0) {
+        throw new Error(`Invalid sort order for blog ${update.blogId}: must be non-negative`);
+      }
+    }
+
+    return await blogRepository.bulkUpdateSortOrder(updates);
+  }
 }
 
 export const blogDomain = new BlogDomain();

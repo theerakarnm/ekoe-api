@@ -45,17 +45,30 @@ export class BlogRepository {
     const orderByColumn = sortBy === 'title' ? blogPosts.title :
       sortBy === 'publishedAt' ? blogPosts.publishedAt :
         sortBy === 'viewCount' ? blogPosts.viewCount :
-          blogPosts.createdAt;
+          sortBy === 'sortOrder' ? blogPosts.sortOrder :
+            blogPosts.createdAt;
 
     const orderByFn = sortOrder === 'asc' ? asc : desc;
 
-    const result = await db
-      .select()
-      .from(blogPosts)
-      .where(whereClause)
-      .orderBy(orderByFn(orderByColumn))
-      .limit(limit)
-      .offset(offset);
+    // If no specific sort requested, use sortOrder ASC as primary, then createdAt DESC
+    let result;
+    if (!sortBy || sortBy === 'sortOrder') {
+      result = await db
+        .select()
+        .from(blogPosts)
+        .where(whereClause)
+        .orderBy(asc(blogPosts.sortOrder), desc(blogPosts.createdAt))
+        .limit(limit)
+        .offset(offset);
+    } else {
+      result = await db
+        .select()
+        .from(blogPosts)
+        .where(whereClause)
+        .orderBy(orderByFn(orderByColumn))
+        .limit(limit)
+        .offset(offset);
+    }
 
     return { posts: result, total };
   }
@@ -133,6 +146,54 @@ export class BlogRepository {
     }
 
     return result[0];
+  }
+
+  async updateSortOrder(id: string, sortOrder: number) {
+    const result = await db
+      .update(blogPosts)
+      .set({
+        sortOrder,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(blogPosts.id, id),
+          isNull(blogPosts.deletedAt)
+        )
+      )
+      .returning();
+
+    if (!result.length) {
+      throw new NotFoundError('Blog post');
+    }
+
+    return result[0];
+  }
+
+  async bulkUpdateSortOrder(updates: { blogId: string; sortOrder: number }[]) {
+    const results = [];
+
+    for (const update of updates) {
+      const result = await db
+        .update(blogPosts)
+        .set({
+          sortOrder: update.sortOrder,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(blogPosts.id, update.blogId),
+            isNull(blogPosts.deletedAt)
+          )
+        )
+        .returning();
+
+      if (result.length) {
+        results.push(result[0]);
+      }
+    }
+
+    return results;
   }
 }
 
