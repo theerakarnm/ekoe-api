@@ -101,7 +101,7 @@ adminRoutes.patch('/products/:id/sequence', requireAdminAuth, validateJson(updat
   return ResponseBuilder.success(c, product);
 });
 
-// Product image upload endpoint
+// Product image/video upload endpoint
 adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const productId = c.req.param('id');
 
@@ -112,7 +112,7 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const imageFile = formData.get('image');
 
   if (!imageFile || !(imageFile instanceof File)) {
-    return ResponseBuilder.error(c, 'Image file is required', 400, 'VALIDATION_ERROR');
+    return ResponseBuilder.error(c, 'Image/Video file is required', 400, 'VALIDATION_ERROR');
   }
 
   const altText = formData.get('altText') as string | undefined;
@@ -120,6 +120,9 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   const sortOrder = formData.get('sortOrder') ? Number(formData.get('sortOrder')) : 0;
   const isPrimary = formData.get('isPrimary') === 'true';
   const isSecondary = formData.get('isSecondary') === 'true';
+
+  // Determine media type from file
+  const mediaType = imageFile.type.startsWith('video/') ? 'video' : 'image';
 
   // Upload to R2
   const url = await storageService.uploadFile(imageFile);
@@ -131,6 +134,7 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
     sortOrder,
     isPrimary,
     isSecondary,
+    mediaType,
   });
 
   return ResponseBuilder.created(c, image);

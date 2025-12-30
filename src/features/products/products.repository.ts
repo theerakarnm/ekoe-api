@@ -465,6 +465,7 @@ export class ProductsRepository {
     sortOrder?: number;
     isPrimary?: boolean;
     isSecondary?: boolean;
+    mediaType?: string;
   }) {
     const result = await db
       .insert(productImages)

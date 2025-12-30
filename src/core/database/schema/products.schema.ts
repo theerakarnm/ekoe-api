@@ -108,6 +108,7 @@ export const productImages = pgTable("product_images", {
   sortOrder: integer("sort_order").default(0),
   isPrimary: boolean("is_primary").default(false),
   isSecondary: boolean("is_secondary").default(false),
+  mediaType: varchar("media_type", { length: 20 }).default("image"), // 'image' | 'video'
 
   // Timestamps
   createdAt: timestamp("created_at").defaultNow().notNull(),
