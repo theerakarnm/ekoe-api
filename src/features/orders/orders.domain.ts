@@ -284,23 +284,26 @@ export class OrdersDomain {
 
       logger.info({
         eligiblePromotionsCount: promotionResult.eligiblePromotions?.length || 0,
-        selectedPromotion: promotionResult.selectedPromotion ? {
-          id: promotionResult.selectedPromotion.promotionId,
-          name: promotionResult.selectedPromotion.promotionName,
-          discountAmount: promotionResult.selectedPromotion.discountAmount,
-        } : null,
+        appliedPromotionsCount: promotionResult.appliedPromotions?.length || 0,
+        appliedPromotions: promotionResult.appliedPromotions?.map(p => ({
+          id: p.promotionId,
+          name: p.promotionName,
+          discountAmount: p.discountAmount,
+        })) || [],
         totalDiscount: promotionResult.totalDiscount,
         freeGiftsCount: promotionResult.freeGifts?.length || 0,
       }, 'Auto promotion evaluation result in calculateOrderPricing');
 
-      // Apply selected promotion
-      if (promotionResult.selectedPromotion) {
-        promotionDiscountAmount = promotionResult.selectedPromotion.discountAmount;
-        appliedPromotions = [{
-          ...promotionResult.selectedPromotion,
-          appliedAt: new Date(),
-        }];
-        promotionalGifts = promotionResult.selectedPromotion.freeGifts || [];
+      // Apply ALL matching promotions (updated logic: apply all promotions, not just one)
+      if (promotionResult.appliedPromotions && promotionResult.appliedPromotions.length > 0) {
+        // Use totalDiscount which is the cumulative discount from all applied promotions
+        promotionDiscountAmount = promotionResult.totalDiscount;
+        appliedPromotions = promotionResult.appliedPromotions.map(p => ({
+          ...p,
+          appliedAt: p.appliedAt || new Date(),
+        }));
+        // Collect all free gifts from all applied promotions
+        promotionalGifts = promotionResult.freeGifts || [];
       }
     } catch (error) {
       // Log error but continue without promotions

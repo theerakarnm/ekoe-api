@@ -216,6 +216,7 @@ export class PromotionalCartService {
       ...basePricing,
       discountAmount: totalDiscountAmount,
       totalAmount,
+      promotionalDiscount: promotionResult.totalDiscount,
     };
   }
 
