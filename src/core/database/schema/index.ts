@@ -20,3 +20,6 @@ export * from './admin.schema';
 
 // Contact
 export * from './contact.schema';
+
+// Site Settings (CMS)
+export * from './site-settings.schema';

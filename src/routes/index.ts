@@ -12,6 +12,7 @@ import blogRoutes from './blog.routes';
 import promotionSecurityRoutes from './promotion-security.routes';
 import contactsRoutes from './contacts.routes';
 import couponsRoutes from './coupons.routes';
+import siteSettingsRoutes from './site-settings.routes';
 import { cors } from 'hono/cors';
 import { auth } from '../libs/auth';
 import {
@@ -109,6 +110,7 @@ router.route('/promotion-security', promotionSecurityRoutes);
 router.route('/blog', blogRoutes);
 router.route('/contacts', contactsRoutes);
 router.route('/coupons', couponsRoutes);
+router.route('/site-settings', siteSettingsRoutes);
 
 // Orders routes (includes both /orders and /admin/orders paths)
 router.route('/', ordersRoutes);
