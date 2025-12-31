@@ -313,6 +313,7 @@ export class CartDomain {
       // If cart is invalid, return empty promotion result
       return {
         eligiblePromotions: [],
+        appliedPromotions: [],
         totalDiscount: 0,
         freeGifts: [],
       };
@@ -695,6 +696,7 @@ export class CartDomain {
       const validatedCart = await this.validateCart(items);
       const promotionResult: PromotionEvaluationResult = {
         eligiblePromotions: [],
+        appliedPromotions: pricing.appliedPromotions,
         selectedPromotion: pricing.appliedPromotions[0],
         totalDiscount: pricing.promotionalDiscount || 0,
         freeGifts: pricing.appliedPromotions[0].freeGifts,

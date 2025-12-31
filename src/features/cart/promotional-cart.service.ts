@@ -63,7 +63,7 @@ export class PromotionalCartService {
     // Evaluate promotions
     const promotionResult = await promotionEngine.evaluatePromotions(evaluationContext);
 
-    // Create updated cart with promotional gifts
+    // Create updated cart with promotional gifts from ALL promotions
     const updatedItems = await this.addPromotionalGiftsToCart(
       baseItems,
       promotionResult.freeGifts,
@@ -82,7 +82,7 @@ export class PromotionalCartService {
 
     return {
       items: updatedItems,
-      appliedPromotions: promotionResult.selectedPromotion ? [promotionResult.selectedPromotion] : [],
+      appliedPromotions: promotionResult.appliedPromotions, // Return all applied promotions
       totalDiscount: promotionResult.totalDiscount + (pricing.discountAmount || 0),
       freeGifts: promotionResult.freeGifts,
       pricing: finalPricing,

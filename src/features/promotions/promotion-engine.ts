@@ -24,7 +24,9 @@ import {
 
 export class PromotionEngine {
   /**
-   * Evaluate all active promotions for a cart and return the best applicable promotion
+   * Evaluate all active promotions for a cart and return ALL applicable promotions
+   * Promotions are applied in priority order (descending: higher number = applied first)
+   * Example: Priority 2 (100 Baht off) applied first, then Priority 1 (5% off remaining)
    */
   async evaluatePromotions(
     context: PromotionEvaluationContext,
@@ -46,6 +48,7 @@ export class PromotionEngine {
     if (activePromotions.length === 0) {
       return {
         eligiblePromotions: [],
+        appliedPromotions: [],
         totalDiscount: 0,
         freeGifts: [],
       };
@@ -64,58 +67,34 @@ export class PromotionEngine {
     if (eligiblePromotions.length === 0) {
       return {
         eligiblePromotions: [],
+        appliedPromotions: [],
         totalDiscount: 0,
         freeGifts: [],
       };
     }
 
-    // Resolve conflicts and select the best promotion
-    const { selectedPromotion, conflictResolution } = await this.selectOptimalPromotion(
-      eligiblePromotions,
-      context
-    );
+    // Check for exclusivity conflicts and filter out conflicting promotions
+    const conflictingPromotionIds = await this.findExclusivityConflicts(eligiblePromotions);
+    let applicablePromotions = eligiblePromotions;
 
-    // If a promotion was selected, validate it with security checks
-    if (selectedPromotion) {
-      const promotion = eligiblePromotions.find(p => p.promotion.id === selectedPromotion.promotionId)?.promotion;
-      if (promotion) {
-        await promotionSecurity.validatePromotionCalculations(context, selectedPromotion, promotion);
-
-        // Log promotion application for audit
-        await promotionAudit.logPromotionApplied(
-          selectedPromotion,
-          context.customerId,
-          context.cartSubtotal,
-          {
-            ipAddress: requestMetadata?.ipAddress,
-            userAgent: requestMetadata?.userAgent,
-            sessionId: requestMetadata?.sessionId,
-            eligiblePromotionsCount: eligiblePromotions.length,
-            conflictResolution: conflictResolution?.conflictType
-          }
-        );
-
-        // Log high-value promotions separately
-        if (selectedPromotion.discountAmount > 500000) { // 5,000 THB
-          await promotionAudit.logHighValuePromotionApplied(
-            selectedPromotion.promotionId,
-            context.customerId,
-            selectedPromotion.discountAmount,
-            {
-              cartSubtotal: context.cartSubtotal,
-              promotionName: selectedPromotion.promotionName
-            }
-          );
-        }
-      }
+    if (conflictingPromotionIds.length > 0) {
+      // Resolve conflicts by keeping highest priority among conflicting ones
+      applicablePromotions = await this.resolveExclusivityConflicts(eligiblePromotions, conflictingPromotionIds);
     }
+
+    // Apply ALL eligible promotions in priority order (descending: higher first)
+    const { appliedPromotions, totalDiscount, freeGifts } = await this.applyAllPromotions(
+      applicablePromotions,
+      context,
+      requestMetadata
+    );
 
     return {
       eligiblePromotions,
-      selectedPromotion,
-      totalDiscount: selectedPromotion?.discountAmount || 0,
-      freeGifts: selectedPromotion?.freeGifts || [],
-      conflictResolution,
+      appliedPromotions,
+      selectedPromotion: appliedPromotions[0], // First applied promotion for backward compatibility
+      totalDiscount,
+      freeGifts,
     };
   }
 
@@ -218,6 +197,128 @@ export class PromotionEngine {
       potentialDiscount,
       potentialGifts,
       priority: promotion.priority,
+    };
+  }
+
+  /**
+   * Apply ALL eligible promotions in priority order (descending: higher priority number = applied first)
+   * Discounts are calculated cumulatively on the running subtotal
+   */
+  private async applyAllPromotions(
+    eligiblePromotions: EligiblePromotion[],
+    context: PromotionEvaluationContext,
+    requestMetadata?: {
+      ipAddress?: string;
+      userAgent?: string;
+      sessionId?: string;
+    }
+  ): Promise<{
+    appliedPromotions: AppliedPromotion[];
+    totalDiscount: number;
+    freeGifts: FreeGift[];
+  }> {
+    // Sort by priority descending (higher priority number = applied first)
+    const sortedPromotions = [...eligiblePromotions].sort((a, b) => b.priority - a.priority);
+
+    const appliedPromotions: AppliedPromotion[] = [];
+    let totalDiscount = 0;
+    const allFreeGifts: FreeGift[] = [];
+    let runningSubtotal = context.cartSubtotal;
+
+    for (const eligiblePromotion of sortedPromotions) {
+      const { promotion, rules } = eligiblePromotion;
+
+      // Get benefit rules for this promotion
+      const benefitRules = rules.filter(r => r.ruleType === 'benefit');
+
+      // Calculate discount for this promotion based on current running subtotal
+      let promotionDiscount = 0;
+      const promotionGifts: FreeGift[] = [];
+
+      for (const benefit of benefitRules) {
+        if (benefit.benefitType === 'percentage_discount') {
+          // Calculate percentage discount on the running subtotal
+          const percentage = benefit.benefitValue || 0;
+          let discount = Math.round((runningSubtotal * percentage) / 100);
+
+          // Apply max discount cap if specified
+          if (benefit.maxDiscountAmount && discount > benefit.maxDiscountAmount) {
+            discount = benefit.maxDiscountAmount;
+          }
+
+          // Don't exceed running subtotal
+          discount = Math.min(discount, runningSubtotal);
+          promotionDiscount += discount;
+        } else if (benefit.benefitType === 'fixed_discount') {
+          // Apply fixed discount, capped at running subtotal
+          const fixedAmount = benefit.benefitValue || 0;
+          const discount = Math.min(fixedAmount, runningSubtotal);
+          promotionDiscount += discount;
+        } else if (benefit.benefitType === 'free_gift') {
+          // Collect free gifts
+          const gifts = await this.calculateFreeGifts(benefit, context);
+          promotionGifts.push(...gifts);
+        }
+      }
+
+      // Apply this promotion's discount to running subtotal
+      runningSubtotal = Math.max(0, runningSubtotal - promotionDiscount);
+      totalDiscount += promotionDiscount;
+      allFreeGifts.push(...promotionGifts);
+
+      // Create applied promotion record
+      const appliedPromotion: AppliedPromotion = {
+        promotionId: promotion.id,
+        promotionName: promotion.name,
+        discountAmount: promotionDiscount,
+        freeGifts: promotionGifts,
+        appliedAt: new Date(),
+      };
+
+      appliedPromotions.push(appliedPromotion);
+
+      // Validate and log each promotion application
+      try {
+        await promotionSecurity.validatePromotionCalculations(context, appliedPromotion, promotion);
+
+        // Log promotion application for audit
+        await promotionAudit.logPromotionApplied(
+          appliedPromotion,
+          context.customerId,
+          context.cartSubtotal,
+          {
+            ipAddress: requestMetadata?.ipAddress,
+            userAgent: requestMetadata?.userAgent,
+            sessionId: requestMetadata?.sessionId,
+            eligiblePromotionsCount: eligiblePromotions.length,
+            runningSubtotalAfter: runningSubtotal,
+            isStackedPromotion: appliedPromotions.length > 1,
+          }
+        );
+
+        // Log high-value promotions separately
+        if (promotionDiscount > 500000) { // 5,000 THB
+          await promotionAudit.logHighValuePromotionApplied(
+            promotion.id,
+            context.customerId,
+            promotionDiscount,
+            {
+              cartSubtotal: context.cartSubtotal,
+              promotionName: promotion.name
+            }
+          );
+        }
+      } catch (error) {
+        // Log error but continue with other promotions
+        const { logger } = await import('../../core/logger');
+        logger.error({ error, promotionId: promotion.id }, 'Error validating/logging promotion application');
+      }
+    }
+
+    return {
+      appliedPromotions,
+      totalDiscount,
+      freeGifts: allFreeGifts,
     };
   }
 

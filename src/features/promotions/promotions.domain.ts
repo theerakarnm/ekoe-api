@@ -36,6 +36,17 @@ export class PromotionDomain {
     // Validate promotion data
     await this.validatePromotionData(data);
 
+    // Check for unique priority among active/scheduled promotions
+    if (data.priority !== undefined) {
+      const priorityCheck = await promotionRepository.checkPriorityExists(data.priority);
+      if (priorityCheck.exists) {
+        throw new PromotionValidationError(
+          `ลำดับความสำคัญ (Priority) ${data.priority} ถูกใช้งานแล้วโดยโปรโมชั่น "${priorityCheck.promotionName}" กรุณาเลือกลำดับความสำคัญอื่น`,
+          'priority'
+        );
+      }
+    }
+
     // Create the promotion
     const promotion = await promotionRepository.createPromotion(data, createdBy);
 
@@ -67,6 +78,17 @@ export class PromotionDomain {
     // Validate that active promotions can only have limited changes
     if (existingPromotion.status === 'active') {
       this.validateActivePromotionUpdate(data);
+    }
+
+    // Check for unique priority among active/scheduled promotions (if priority is being changed)
+    if (data.priority !== undefined && data.priority !== existingPromotion.priority) {
+      const priorityCheck = await promotionRepository.checkPriorityExists(data.priority, id);
+      if (priorityCheck.exists) {
+        throw new PromotionValidationError(
+          `ลำดับความสำคัญ (Priority) ${data.priority} ถูกใช้งานแล้วโดยโปรโมชั่น "${priorityCheck.promotionName}" กรุณาเลือกลำดับความสำคัญอื่น`,
+          'priority'
+        );
+      }
     }
 
     // Validate updated data

@@ -866,6 +866,36 @@ export class PromotionRepository {
       createdAt: new Date(dbUsage.createdAt),
     };
   }
+
+  /**
+   * Check if a priority value is already in use by another promotion
+   * Only checks active and scheduled promotions (not expired/paused)
+   */
+  async checkPriorityExists(priority: number, excludeId?: string): Promise<{ exists: boolean; promotionName?: string }> {
+    const conditions = [
+      eq(autoPromotions.priority, priority),
+      isNull(autoPromotions.deletedAt),
+      or(
+        eq(autoPromotions.status, 'active'),
+        eq(autoPromotions.status, 'scheduled')
+      )
+    ];
+
+    if (excludeId) {
+      conditions.push(sql`${autoPromotions.id} != ${excludeId}`);
+    }
+
+    const [existing] = await db
+      .select({ id: autoPromotions.id, name: autoPromotions.name })
+      .from(autoPromotions)
+      .where(and(...conditions))
+      .limit(1);
+
+    return {
+      exists: !!existing,
+      promotionName: existing?.name,
+    };
+  }
 }
 
 export const promotionRepository = new PromotionRepository();

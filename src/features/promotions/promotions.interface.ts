@@ -121,7 +121,8 @@ export interface FreeGift {
 // Promotion evaluation result
 export interface PromotionEvaluationResult {
   eligiblePromotions: EligiblePromotion[];
-  selectedPromotion?: AppliedPromotion;
+  appliedPromotions: AppliedPromotion[]; // All applied promotions in priority order
+  selectedPromotion?: AppliedPromotion; // Keep for backward compatibility (first promotion)
   totalDiscount: number;
   freeGifts: FreeGift[];
   conflictResolution?: ConflictResolution;
