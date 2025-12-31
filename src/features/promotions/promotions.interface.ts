@@ -204,6 +204,17 @@ export const createPromotionRuleSchema = z.object({
   giftPrice: z.number().optional().nullable(),
   giftImageUrl: z.string().optional().nullable(),
   giftQuantity: z.number().int().positive().optional().nullable(),
+  // Multiple gift options support
+  giftOptions: z.array(z.object({
+    id: z.string(),
+    name: z.string(),
+    price: z.number().optional(),
+    imageUrl: z.string().optional(),
+    quantity: z.number().int().positive(),
+    productId: z.string().optional(),
+  })).optional().nullable(),
+  giftSelectionType: z.enum(['single', 'options']).optional().nullable(),
+  maxGiftSelections: z.number().int().positive().optional().nullable(),
 });
 
 export const promotionEvaluationContextSchema = z.object({

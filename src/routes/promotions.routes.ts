@@ -436,6 +436,13 @@ promotions.post('/:id/rules', requireAdminAuth, zValidator('json', z.array(creat
       giftPrice: rule.giftPrice != null ? rule.giftPrice * 100 : undefined,
       giftImageUrl: rule.giftImageUrl ?? undefined,
       giftQuantity: rule.giftQuantity ?? undefined,
+      // Multiple gift options support
+      giftOptions: rule.giftOptions ? rule.giftOptions.map(opt => ({
+        ...opt,
+        price: opt.price != null ? opt.price * 100 : undefined,  // Convert to cents
+      })) : undefined,
+      giftSelectionType: rule.giftSelectionType ?? undefined,
+      maxGiftSelections: rule.maxGiftSelections ?? undefined,
     }));
 
     const createdRules = await promotionDomain.addPromotionRules(promotionId, rules);

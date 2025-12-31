@@ -813,16 +813,30 @@ export class PromotionRepository {
   }
 
   /**
-   * Helper method to safely parse JSON with fallback
+   * Safely parse JSON string, returning undefined if invalid
+   * Also handles already-parsed objects from Drizzle's jsonb type
    */
-  private safeJsonParse(jsonString: string | null): any {
-    if (!jsonString) return undefined;
-    try {
-      return JSON.parse(jsonString);
-    } catch (error) {
-      console.warn('Failed to parse JSON:', jsonString, error);
+  private safeJsonParse(jsonValue: any): any {
+    if (jsonValue === null || jsonValue === undefined) {
       return undefined;
     }
+
+    // If it's already an object/array (Drizzle jsonb returns parsed objects), return as-is
+    if (typeof jsonValue === 'object') {
+      return jsonValue;
+    }
+
+    // If it's a string, try to parse it
+    if (typeof jsonValue === 'string') {
+      try {
+        return JSON.parse(jsonValue);
+      } catch (error) {
+        console.warn('Failed to parse JSON string:', jsonValue, error);
+        return undefined;
+      }
+    }
+
+    return undefined;
   }
 
   /**

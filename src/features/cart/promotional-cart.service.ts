@@ -10,6 +10,7 @@ import type {
   PromotionEvaluationContext,
   FreeGift,
   AppliedPromotion,
+  PendingGiftSelection,
 } from '../promotions/promotions.interface';
 
 export interface PromotionalCartItem extends CartItemInput {
@@ -24,6 +25,7 @@ export interface PromotionalCartResult {
   totalDiscount: number;
   freeGifts: FreeGift[];
   pricing: CartPricing;
+  pendingGiftSelections?: PendingGiftSelection[];
 }
 
 export class PromotionalCartService {
@@ -86,6 +88,7 @@ export class PromotionalCartService {
       totalDiscount: promotionResult.totalDiscount + (pricing.discountAmount || 0),
       freeGifts: promotionResult.freeGifts,
       pricing: finalPricing,
+      pendingGiftSelections: promotionResult.pendingGiftSelections,
     };
   }
 
