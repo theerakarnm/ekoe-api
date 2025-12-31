@@ -112,6 +112,11 @@ export const autoPromotionRules = pgTable("auto_promotion_rules", {
   giftImageUrl: text("gift_image_url"),
   giftQuantity: integer("gift_quantity"),
 
+  // Multiple gift options support (for user-selectable gifts)
+  giftOptions: jsonb("gift_options"), // Array of GiftOption objects
+  giftSelectionType: varchar("gift_selection_type", { length: 20 }).default("single"), // 'single' or 'options'
+  maxGiftSelections: integer("max_gift_selections").default(1), // How many gifts user can select
+
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   // Indexes for rule queries

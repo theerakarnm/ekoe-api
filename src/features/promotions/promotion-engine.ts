@@ -14,7 +14,9 @@ import type {
   EligiblePromotion,
   FreeGift,
   ConflictResolution,
-  CartItem
+  CartItem,
+  GiftOption,
+  PendingGiftSelection
 } from './promotions.interface';
 import {
   PromotionValidationError,
@@ -83,7 +85,7 @@ export class PromotionEngine {
     }
 
     // Apply ALL eligible promotions in priority order (descending: higher first)
-    const { appliedPromotions, totalDiscount, freeGifts } = await this.applyAllPromotions(
+    const { appliedPromotions, totalDiscount, freeGifts, pendingGiftSelections } = await this.applyAllPromotions(
       applicablePromotions,
       context,
       requestMetadata
@@ -95,6 +97,7 @@ export class PromotionEngine {
       selectedPromotion: appliedPromotions[0], // First applied promotion for backward compatibility
       totalDiscount,
       freeGifts,
+      pendingGiftSelections,
     };
   }
 
@@ -216,6 +219,7 @@ export class PromotionEngine {
     appliedPromotions: AppliedPromotion[];
     totalDiscount: number;
     freeGifts: FreeGift[];
+    pendingGiftSelections: PendingGiftSelection[];
   }> {
     // Sort by priority descending (higher priority number = applied first)
     const sortedPromotions = [...eligiblePromotions].sort((a, b) => b.priority - a.priority);
@@ -223,6 +227,7 @@ export class PromotionEngine {
     const appliedPromotions: AppliedPromotion[] = [];
     let totalDiscount = 0;
     const allFreeGifts: FreeGift[] = [];
+    const pendingGiftSelections: PendingGiftSelection[] = [];
     let runningSubtotal = context.cartSubtotal;
 
     for (const eligiblePromotion of sortedPromotions) {
@@ -258,6 +263,22 @@ export class PromotionEngine {
           // Collect free gifts
           const gifts = await this.calculateFreeGifts(benefit, context);
           promotionGifts.push(...gifts);
+
+          // Check if this benefit has gift options requiring user selection
+          if (benefit.giftSelectionType === 'options' && benefit.giftOptions && benefit.giftOptions.length > 0) {
+            const maxSelections = benefit.maxGiftSelections || 1;
+            const hasUnselectedGifts = gifts.some(g => g.requiresSelection);
+
+            if (hasUnselectedGifts) {
+              pendingGiftSelections.push({
+                promotionId: promotion.id,
+                promotionName: promotion.name,
+                availableOptions: benefit.giftOptions,
+                selectionsRemaining: maxSelections,
+                selectedOptionIds: [],
+              });
+            }
+          }
         }
       }
 
@@ -319,6 +340,7 @@ export class PromotionEngine {
       appliedPromotions,
       totalDiscount,
       freeGifts: allFreeGifts,
+      pendingGiftSelections,
     };
   }
 
@@ -576,12 +598,53 @@ export class PromotionEngine {
 
   /**
    * Calculate free gifts with comprehensive inventory validation and tier selection
-   * Supports both product-based gifts and standalone admin-created gifts
+   * Supports both product-based gifts, standalone admin-created gifts, and multiple gift options
    */
-  private async calculateFreeGifts(benefit: PromotionRule, context?: PromotionEvaluationContext): Promise<FreeGift[]> {
+  private async calculateFreeGifts(
+    benefit: PromotionRule,
+    context?: PromotionEvaluationContext,
+    selectedOptionIds?: string[]  // User's selected gift option IDs
+  ): Promise<FreeGift[]> {
     const giftProductIds = benefit.giftProductIds || [];
     const giftQuantities = benefit.giftQuantities || [];
     const freeGifts: FreeGift[] = [];
+
+    // Case 0: Handle multiple gift options (user-selectable gifts)
+    if (benefit.giftSelectionType === 'options' && benefit.giftOptions && benefit.giftOptions.length > 0) {
+      const maxSelections = benefit.maxGiftSelections || 1;
+
+      // If user has selected options, return those specific gifts
+      if (selectedOptionIds && selectedOptionIds.length > 0) {
+        const selectedOptions = benefit.giftOptions.filter(opt => selectedOptionIds.includes(opt.id));
+        for (const option of selectedOptions.slice(0, maxSelections)) {
+          freeGifts.push({
+            productId: option.productId,
+            quantity: option.quantity || 1,
+            name: option.name,
+            value: option.price || 0,
+            imageUrl: option.imageUrl,
+            optionId: option.id,
+            requiresSelection: false,  // Already selected
+          });
+        }
+        return freeGifts;
+      }
+
+      // No selection yet - return a placeholder indicating selection is required
+      // Return one "pending" gift for each selection the user can make
+      for (let i = 0; i < maxSelections; i++) {
+        freeGifts.push({
+          productId: undefined,
+          quantity: 1,
+          name: `เลือกของแถม ${benefit.giftOptions.length > 0 ? `(${benefit.giftOptions.length} ตัวเลือก)` : ''}`,
+          value: 0,
+          imageUrl: undefined,
+          optionId: undefined,
+          requiresSelection: true,  // Indicates user must select
+        });
+      }
+      return freeGifts;
+    }
 
     // Case 1: Handle standalone admin-created gifts (not based on existing products)
     // These are gifts with giftName/giftImageUrl but no giftProductIds

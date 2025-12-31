@@ -238,6 +238,9 @@ export class PromotionRepository {
         giftPrice: rule.giftPrice?.toString(),
         giftImageUrl: rule.giftImageUrl,
         giftQuantity: rule.giftQuantity,
+        giftOptions: rule.giftOptions ? JSON.stringify(rule.giftOptions) : null,
+        giftSelectionType: rule.giftSelectionType || 'single',
+        maxGiftSelections: rule.maxGiftSelections || 1,
       })
       .returning();
 
@@ -846,6 +849,9 @@ export class PromotionRepository {
       giftPrice: dbRule.giftPrice ? parseFloat(dbRule.giftPrice) : undefined,
       giftImageUrl: dbRule.giftImageUrl,
       giftQuantity: dbRule.giftQuantity,
+      giftOptions: this.safeJsonParse(dbRule.giftOptions),
+      giftSelectionType: dbRule.giftSelectionType || 'single',
+      maxGiftSelections: dbRule.maxGiftSelections || 1,
       createdAt: new Date(dbRule.createdAt),
     };
   }

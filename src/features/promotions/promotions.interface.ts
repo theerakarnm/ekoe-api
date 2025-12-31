@@ -49,6 +49,10 @@ export interface PromotionRule {
   giftPrice?: number;
   giftImageUrl?: string;
   giftQuantity?: number;
+  // Multiple gift options support
+  giftOptions?: GiftOption[];
+  giftSelectionType?: 'single' | 'options';
+  maxGiftSelections?: number;
   createdAt: Date;
 }
 
@@ -107,6 +111,16 @@ export interface AppliedPromotion {
   freeGifts: FreeGift[];
   appliedAt: Date;
 }
+// Gift option for user-selectable gifts
+export interface GiftOption {
+  id: string;
+  name: string;
+  price?: number;
+  imageUrl?: string;
+  quantity: number;
+  productId?: string;
+  available?: boolean;
+}
 
 // Free gift interface
 export interface FreeGift {
@@ -116,6 +130,17 @@ export interface FreeGift {
   name: string;
   imageUrl?: string;
   value: number;
+  optionId?: string;        // Which option this gift came from (for selectable gifts)
+  requiresSelection?: boolean;  // Indicates user must select from options
+}
+
+// Pending gift selection for promotions with multiple options
+export interface PendingGiftSelection {
+  promotionId: string;
+  promotionName: string;
+  availableOptions: GiftOption[];
+  selectionsRemaining: number;  // How many more gifts user can select
+  selectedOptionIds: string[];  // Already selected option IDs
 }
 
 // Promotion evaluation result
@@ -126,6 +151,7 @@ export interface PromotionEvaluationResult {
   totalDiscount: number;
   freeGifts: FreeGift[];
   conflictResolution?: ConflictResolution;
+  pendingGiftSelections?: PendingGiftSelection[];  // Gifts awaiting user selection
 }
 
 // Eligible promotion interface
