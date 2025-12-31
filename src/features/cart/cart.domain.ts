@@ -428,6 +428,24 @@ export class CartDomain {
       }
     }
 
+    const linkedProductIds = (discountCode.linkedProductIds || []) as string[];
+    // Check if discount linked products are in the cart
+    if (linkedProductIds.length > 0) {
+      const cartProductIds = items?.map(item => item.productId);
+      const missingProducts = linkedProductIds.filter(
+        productId => !cartProductIds?.includes(productId)
+      );
+      if (missingProducts.length > 0) {
+        console.log('linked products not in cart');
+
+        return {
+          isValid: false,
+          error: 'This discount code is only valid for the following products',
+          errorCode: 'LINKED_PRODUCTS_NOT_IN_CART',
+        };
+      }
+    }
+
     // Calculate discount amount
     const applicableProductIds = discountCode.applicableToProducts as string[] | null;
     const discountAmount = this.calculateDiscountAmount(
@@ -438,9 +456,6 @@ export class CartDomain {
       applicableProductIds,
       items
     );
-
-    console.log(discountAmount);
-
 
     return {
       isValid: true,

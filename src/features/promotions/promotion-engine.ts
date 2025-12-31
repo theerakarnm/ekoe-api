@@ -242,22 +242,28 @@ export class PromotionEngine {
 
       for (const benefit of benefitRules) {
         if (benefit.benefitType === 'percentage_discount') {
-          // Calculate percentage discount on the running subtotal
+          // Calculate applicable subtotal based on product restrictions
+          const applicableSubtotal = this.calculateApplicableSubtotal(benefit, context);
+
+          // Calculate percentage discount on the applicable subtotal (not the full running subtotal)
           const percentage = benefit.benefitValue || 0;
-          let discount = Math.round((runningSubtotal * percentage) / 100);
+          let discount = Math.round((applicableSubtotal * percentage) / 100);
 
           // Apply max discount cap if specified
           if (benefit.maxDiscountAmount && discount > benefit.maxDiscountAmount) {
             discount = benefit.maxDiscountAmount;
           }
 
-          // Don't exceed running subtotal
-          discount = Math.min(discount, runningSubtotal);
+          // Don't exceed applicable subtotal (the products this discount applies to)
+          discount = Math.min(discount, applicableSubtotal);
           promotionDiscount += discount;
         } else if (benefit.benefitType === 'fixed_discount') {
-          // Apply fixed discount, capped at running subtotal
+          // Calculate applicable subtotal based on product restrictions
+          const applicableSubtotal = this.calculateApplicableSubtotal(benefit, context);
+
+          // Apply fixed discount, capped at applicable subtotal
           const fixedAmount = benefit.benefitValue || 0;
-          const discount = Math.min(fixedAmount, runningSubtotal);
+          const discount = Math.min(fixedAmount, applicableSubtotal);
           promotionDiscount += discount;
         } else if (benefit.benefitType === 'free_gift') {
           // Collect free gifts

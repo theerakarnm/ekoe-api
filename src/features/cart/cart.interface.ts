@@ -147,7 +147,7 @@ export interface DiscountValidation {
   discountValue?: number;
   discountAmount?: number;
   error?: string;
-  errorCode?: 'INVALID_CODE' | 'EXPIRED' | 'USAGE_LIMIT_REACHED' | 'MIN_PURCHASE_NOT_MET' | 'NOT_APPLICABLE' | 'NOT_STARTED';
+  errorCode?: 'INVALID_CODE' | 'EXPIRED' | 'USAGE_LIMIT_REACHED' | 'MIN_PURCHASE_NOT_MET' | 'NOT_APPLICABLE' | 'NOT_STARTED' | 'LINKED_PRODUCTS_NOT_IN_CART';
 }
 
 export interface ShippingMethod {
