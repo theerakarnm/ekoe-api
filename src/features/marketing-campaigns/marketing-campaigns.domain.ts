@@ -5,6 +5,7 @@ import type {
   UpdateMarketingCampaignInput,
   MarketingCampaign,
   GetMarketingCampaignsParams,
+  CampaignRegistration,
 } from './marketing-campaigns.interface';
 
 class MarketingCampaignsDomain {
@@ -151,6 +152,47 @@ class MarketingCampaignsDomain {
       .replace(/-+/g, '-')
       .replace(/^-|-$/g, '');
   }
+
+  // ============================================================
+  // Registration Methods
+  // ============================================================
+
+  /**
+   * Register a phone number for a campaign
+   */
+  async registerPhone(campaignId: string, phoneNumber: string): Promise<CampaignRegistration> {
+    // Verify campaign exists and is active
+    const campaign = await marketingCampaignsRepository.getById(campaignId);
+    if (!campaign) {
+      throw new AppError('Campaign not found', 404, 'NOT_FOUND');
+    }
+
+    return marketingCampaignsRepository.createRegistration(campaignId, phoneNumber);
+  }
+
+  /**
+   * Get registrations for a campaign (admin)
+   */
+  async getCampaignRegistrations(campaignId: string): Promise<CampaignRegistration[]> {
+    // Verify campaign exists
+    const campaign = await marketingCampaignsRepository.getById(campaignId);
+    if (!campaign) {
+      throw new AppError('Campaign not found', 404, 'NOT_FOUND');
+    }
+
+    return marketingCampaignsRepository.getRegistrations(campaignId);
+  }
+
+  /**
+   * Delete a registration (admin)
+   */
+  async deleteRegistration(id: string): Promise<void> {
+    const deleted = await marketingCampaignsRepository.deleteRegistration(id);
+    if (!deleted) {
+      throw new AppError('Registration not found', 404, 'NOT_FOUND');
+    }
+  }
 }
 
 export const marketingCampaignsDomain = new MarketingCampaignsDomain();
+

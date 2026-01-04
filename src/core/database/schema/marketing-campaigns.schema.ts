@@ -36,3 +36,17 @@ export const marketingCampaigns = pgTable("marketing_campaigns", {
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
 });
+
+// Campaign Registrations - Phone number submissions
+export const campaignRegistrations = pgTable("campaign_registrations", {
+  id: varchar('id', { length: 36 }).$defaultFn(uuidv7).primaryKey(),
+
+  // Reference to campaign
+  campaignId: varchar("campaign_id", { length: 36 }).notNull().references(() => marketingCampaigns.id, { onDelete: "cascade" }),
+
+  // Contact info
+  phoneNumber: varchar("phone_number", { length: 20 }).notNull(),
+
+  // Timestamps
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

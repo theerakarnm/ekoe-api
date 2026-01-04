@@ -79,3 +79,21 @@ export const getMarketingCampaignsParamsSchema = z.object({
 });
 
 export type GetMarketingCampaignsParams = z.infer<typeof getMarketingCampaignsParamsSchema>;
+
+// ============================================================
+// Campaign Registration Schema
+// ============================================================
+
+export const registerPhoneSchema = z.object({
+  phoneNumber: z.string().min(9, 'Phone number is required').max(20),
+});
+
+export type RegisterPhoneInput = z.infer<typeof registerPhoneSchema>;
+
+export interface CampaignRegistration {
+  id: string;
+  campaignId: string;
+  phoneNumber: string;
+  createdAt: Date;
+}
+

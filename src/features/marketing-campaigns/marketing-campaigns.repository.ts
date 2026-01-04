@@ -1,7 +1,7 @@
 import { eq, desc, and, isNull, or, like } from 'drizzle-orm';
 import { db } from '../../core/database';
-import { marketingCampaigns } from '../../core/database/schema';
-import type { CreateMarketingCampaignInput, UpdateMarketingCampaignInput, MarketingCampaign, MarketingCampaignListItem, GetMarketingCampaignsParams } from './marketing-campaigns.interface';
+import { marketingCampaigns, campaignRegistrations } from '../../core/database/schema';
+import type { CreateMarketingCampaignInput, UpdateMarketingCampaignInput, MarketingCampaign, MarketingCampaignListItem, GetMarketingCampaignsParams, CampaignRegistration } from './marketing-campaigns.interface';
 
 class MarketingCampaignsRepository {
   /**
@@ -169,6 +169,60 @@ class MarketingCampaignsRepository {
 
     return !!deleted;
   }
+
+  // ============================================================
+  // Registration Methods
+  // ============================================================
+
+  /**
+   * Create a phone registration for a campaign
+   */
+  async createRegistration(campaignId: string, phoneNumber: string): Promise<CampaignRegistration> {
+    const [registration] = await db
+      .insert(campaignRegistrations)
+      .values({
+        campaignId,
+        phoneNumber,
+      })
+      .returning();
+
+    return registration;
+  }
+
+  /**
+   * Get registrations for a campaign
+   */
+  async getRegistrations(campaignId: string): Promise<CampaignRegistration[]> {
+    return db
+      .select()
+      .from(campaignRegistrations)
+      .where(eq(campaignRegistrations.campaignId, campaignId))
+      .orderBy(desc(campaignRegistrations.createdAt));
+  }
+
+  /**
+   * Get registration count for a campaign
+   */
+  async getRegistrationCount(campaignId: string): Promise<number> {
+    const result = await db
+      .select({ id: campaignRegistrations.id })
+      .from(campaignRegistrations)
+      .where(eq(campaignRegistrations.campaignId, campaignId));
+    return result.length;
+  }
+
+  /**
+   * Delete a registration
+   */
+  async deleteRegistration(id: string): Promise<boolean> {
+    const [deleted] = await db
+      .delete(campaignRegistrations)
+      .where(eq(campaignRegistrations.id, id))
+      .returning({ id: campaignRegistrations.id });
+
+    return !!deleted;
+  }
 }
 
 export const marketingCampaignsRepository = new MarketingCampaignsRepository();
+

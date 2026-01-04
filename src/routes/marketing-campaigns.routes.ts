@@ -7,6 +7,7 @@ import {
   createMarketingCampaignSchema,
   updateMarketingCampaignSchema,
   getMarketingCampaignsParamsSchema,
+  registerPhoneSchema,
 } from '../features/marketing-campaigns/marketing-campaigns.interface';
 import { auth } from '../libs/auth';
 
@@ -29,6 +30,22 @@ marketingCampaignsRoutes.get('/:slug', async (c) => {
   const slug = c.req.param('slug');
   const campaign = await marketingCampaignsDomain.getActiveCampaignBySlug(slug);
   return ResponseBuilder.success(c, campaign);
+});
+
+/**
+ * Register phone number for a campaign (public)
+ */
+marketingCampaignsRoutes.post('/:slug/register', validateJson(registerPhoneSchema), async (c) => {
+  const slug = c.req.param('slug');
+  const { phoneNumber } = await c.req.json();
+
+  // Get campaign by slug first
+  const campaign = await marketingCampaignsDomain.getActiveCampaignBySlug(slug);
+
+  // Register the phone
+  const registration = await marketingCampaignsDomain.registerPhone(campaign.id, phoneNumber);
+
+  return ResponseBuilder.created(c, registration);
 });
 
 // ============================================================
@@ -92,4 +109,23 @@ marketingCampaignsRoutes.delete('/admin/:id', requireAdminAuth, async (c) => {
   return ResponseBuilder.noContent(c);
 });
 
+/**
+ * Get registrations for a campaign (admin)
+ */
+marketingCampaignsRoutes.get('/admin/:id/registrations', requireAdminAuth, async (c) => {
+  const id = c.req.param('id');
+  const registrations = await marketingCampaignsDomain.getCampaignRegistrations(id);
+  return ResponseBuilder.success(c, registrations);
+});
+
+/**
+ * Delete a registration (admin)
+ */
+marketingCampaignsRoutes.delete('/admin/registrations/:registrationId', requireAdminAuth, async (c) => {
+  const registrationId = c.req.param('registrationId');
+  await marketingCampaignsDomain.deleteRegistration(registrationId);
+  return ResponseBuilder.noContent(c);
+});
+
 export default marketingCampaignsRoutes;
+
