@@ -156,7 +156,61 @@ export class PromotionEngine {
       benefitRulesCount: benefitRules.length,
     }, 'Promotion rules loaded');
 
-    // Check all conditions must be met
+    // Check if this is a multi-tiered promotion (multiple conditions of the same type)
+    // Multi-tier promotions pair conditions with benefits by index
+    if (this.isMultiTieredPromotion(conditionRules)) {
+      logger.debug({
+        promotionId: promotion.id,
+        tierCount: conditionRules.length,
+      }, 'Detected multi-tiered promotion');
+
+      // Select the highest qualifying tier
+      const selectedTier = this.selectHighestQualifyingDiscountTier(
+        conditionRules,
+        benefitRules,
+        context
+      );
+
+      if (!selectedTier) {
+        logger.debug({
+          promotionId: promotion.id,
+          reason: 'NO_QUALIFYING_TIER',
+        }, 'Promotion not eligible: no tier qualifies');
+        return null;
+      }
+
+      logger.debug({
+        promotionId: promotion.id,
+        selectedTierThreshold: selectedTier.condition.numericValue,
+        benefitType: selectedTier.benefit.benefitType,
+        benefitValue: selectedTier.benefit.benefitValue,
+      }, 'Selected qualifying tier');
+
+      // Calculate potential benefits only from the selected tier
+      const { potentialDiscount, potentialGifts } = await this.calculatePotentialBenefits(
+        [selectedTier.benefit],
+        context
+      );
+
+      // Perform additional validation for high-value promotions
+      this.validateHighValuePromotion(promotion, potentialDiscount, context);
+
+      logger.debug({
+        promotionId: promotion.id,
+        potentialDiscount,
+        potentialGiftsCount: potentialGifts.length,
+      }, 'Multi-tier promotion eligible with potential benefits');
+
+      return {
+        promotion,
+        rules: [selectedTier.condition, selectedTier.benefit],
+        potentialDiscount,
+        potentialGifts,
+        priority: promotion.priority,
+      };
+    }
+
+    // Non-tiered promotions: all conditions must be met
     for (const condition of conditionRules) {
       const conditionMet = this.evaluateCondition(condition, context);
       logger.debug({
@@ -1217,6 +1271,60 @@ export class PromotionEngine {
     }
 
     return true;
+  }
+
+  /**
+   * Check if promotion uses tiered conditions (multiple conditions of the same type)
+   * Tiered promotions have multiple conditions with the same conditionType but different thresholds
+   */
+  private isMultiTieredPromotion(conditionRules: PromotionRule[]): boolean {
+    if (conditionRules.length <= 1) return false;
+
+    // Check if all conditions are the same type (e.g., all product_quantity or all cart_value)
+    const conditionTypes = new Set(conditionRules.map(c => c.conditionType));
+    if (conditionTypes.size !== 1) return false;
+
+    // Check if all conditions use the same operator type (typically 'gte' for tiers)
+    const operators = new Set(conditionRules.map(c => c.operator));
+    if (operators.size !== 1) return false;
+
+    // Must be a threshold-based condition type
+    const conditionType = conditionRules[0].conditionType;
+    return conditionType === 'product_quantity' || conditionType === 'cart_value';
+  }
+
+  /**
+   * Select the highest qualifying tier for tiered discount promotions
+   * Pairs conditions with benefits by index and returns the tier with the highest threshold that passes
+   */
+  private selectHighestQualifyingDiscountTier(
+    conditionRules: PromotionRule[],
+    benefitRules: PromotionRule[],
+    context: PromotionEvaluationContext
+  ): { condition: PromotionRule; benefit: PromotionRule } | null {
+    const qualifyingTiers: { condition: PromotionRule; benefit: PromotionRule; threshold: number }[] = [];
+
+    // Pair conditions with benefits by index (tier 1 condition + tier 1 benefit, etc.)
+    for (let i = 0; i < conditionRules.length && i < benefitRules.length; i++) {
+      const condition = conditionRules[i];
+      const benefit = benefitRules[i];
+
+      // Check if this tier's condition is met
+      if (this.evaluateCondition(condition, context)) {
+        qualifyingTiers.push({
+          condition,
+          benefit,
+          threshold: condition.numericValue || 0
+        });
+      }
+    }
+
+    if (qualifyingTiers.length === 0) return null;
+
+    // Sort by threshold descending to get the highest qualifying tier
+    qualifyingTiers.sort((a, b) => b.threshold - a.threshold);
+
+    return qualifyingTiers[0];
   }
 }
 

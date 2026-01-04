@@ -30,6 +30,15 @@ export type HeroSlidesSetting = z.infer<typeof heroSlidesSettingSchema>;
 export const featureSectionSettingSchema = z.object({
   leftImage: z.string().min(1, 'Left image URL is required'),
   rightImage: z.string().min(1, 'Right image URL is required'),
+  // Left section text
+  leftTitle: z.string().default('Glow That\'s Worth Obsessing Over'),
+  leftDescription: z.string().default(''),
+  leftButtonText: z.string().default('Keep Me Glowing'),
+  // Right section text
+  rightTitle: z.string().default('ปรัชญาแห่งความเรียบง่าย เพื่อผิวที่ดีที่สุด'),
+  rightDescription: z.string().default(''),
+  rightHighlightText: z.string().default('"ผิวที่ดี เริ่มจากสิ่งที่ดีจริงๆ"'),
+  rightButtonText: z.string().default('Begin Your Glow'),
 });
 
 export type FeatureSectionSetting = z.infer<typeof featureSectionSettingSchema>;
