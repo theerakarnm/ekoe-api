@@ -23,3 +23,7 @@ export * from './contact.schema';
 
 // Site Settings (CMS)
 export * from './site-settings.schema';
+
+// Marketing Campaigns
+export * from './marketing-campaigns.schema';
+
