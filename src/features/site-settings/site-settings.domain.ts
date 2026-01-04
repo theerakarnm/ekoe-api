@@ -35,6 +35,13 @@ const DEFAULT_HERO_SLIDES: HeroSlidesSetting = [
 const DEFAULT_FEATURE_SECTION: FeatureSectionSetting = {
   leftImage: '/ekoe-asset/HOME/Glowthat_sworth.png',
   rightImage: '/ekoe-asset/HOME/หนึ่งอย่างที่ดีจริง.png',
+  leftTitle: "",
+  leftDescription: "",
+  leftButtonText: "",
+  rightTitle: "",
+  rightDescription: "",
+  rightHighlightText: "",
+  rightButtonText: "",
 };
 
 const DEFAULT_ONLINE_EXECUTIVE: OnlineExecutiveSetting = {
