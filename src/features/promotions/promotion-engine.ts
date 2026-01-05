@@ -1284,9 +1284,13 @@ export class PromotionEngine {
     const conditionTypes = new Set(conditionRules.map(c => c.conditionType));
     if (conditionTypes.size !== 1) return false;
 
-    // Check if all conditions use the same operator type (typically 'gte' for tiers)
+    // Check if operators are valid for tiered promotions
+    // Allow: all same operator, or mix of 'eq', 'gte', 'lte' (common for tiered thresholds)
+    // e.g., quantity = 1, quantity = 2, quantity >= 3
     const operators = new Set(conditionRules.map(c => c.operator));
-    if (operators.size !== 1) return false;
+    const validTieredOperators = ['eq', 'gte', 'lte'];
+    const hasOnlyValidOperators = [...operators].every(op => validTieredOperators.includes(op as string));
+    if (!hasOnlyValidOperators) return false;
 
     // Must be a threshold-based condition type
     const conditionType = conditionRules[0].conditionType;

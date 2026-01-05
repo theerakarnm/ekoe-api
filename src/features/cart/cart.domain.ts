@@ -432,11 +432,16 @@ export class CartDomain {
     // Check if discount linked products are in the cart
     if (linkedProductIds.length > 0) {
       const cartProductIds = items?.map(item => item.productId);
-      const missingProducts = linkedProductIds.filter(
-        productId => !cartProductIds?.includes(productId)
+      console.log({
+        cartProductIds,
+        linkedProductIds
+      });
+
+      const hasLinkedProduct = linkedProductIds.some(
+        productId => cartProductIds?.includes(productId)
       );
-      if (missingProducts.length > 0) {
-        console.log('linked products not in cart');
+      if (!hasLinkedProduct) {
+        console.log('no linked products in cart');
 
         return {
           isValid: false,
