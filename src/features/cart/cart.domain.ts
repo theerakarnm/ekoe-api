@@ -210,7 +210,8 @@ export class CartDomain {
             dbDiscountCode.discountValue,
             validatedCart.items,
             dbDiscountCode.maxDiscountAmount,
-            applicableProductIds
+            applicableProductIds,
+            promotionResult.totalDiscount
           );
 
           appliedDiscount = {
@@ -352,7 +353,8 @@ export class CartDomain {
     code: string,
     subtotal: number,
     items?: CartItemInput[],
-    userId?: string
+    userId?: string,
+    promotionDiscountAmount?: number
   ): Promise<DiscountValidation> {
     // Get discount code from database
     const discountCode = await cartRepository.getDiscountCodeByCode(code);
@@ -459,7 +461,8 @@ export class CartDomain {
       subtotal,
       discountCode.maxDiscountAmount,
       applicableProductIds,
-      items
+      items,
+      promotionDiscountAmount
     );
 
     return {
@@ -483,12 +486,13 @@ export class CartDomain {
     subtotal: number,
     maxDiscountAmount?: number | null,
     applicableProductIds?: string[] | null,
-    items?: CartItemInput[]
+    items?: CartItemInput[],
+    promotionDiscountAmount?: number
   ): number {
     // For product-specific discounts, we use the full subtotal as an approximation
     // In practice, this method should receive validated cart items with prices
     // For now, we apply the discount to the full subtotal
-    let applicableSubtotal = subtotal;
+    let applicableSubtotal = subtotal - (promotionDiscountAmount || 0);
 
     // Note: Product-specific discount calculation is simplified here
     // The actual implementation should be done with validated cart items
@@ -526,7 +530,8 @@ export class CartDomain {
     discountValue: number,
     validatedItems: ValidatedCartItem[],
     maxDiscountAmount?: number | null,
-    applicableProductIds?: string[] | null
+    applicableProductIds?: string[] | null,
+    promotionalDiscount?: number
   ): number {
     // Calculate applicable subtotal
     let applicableSubtotal = 0;
@@ -541,6 +546,10 @@ export class CartDomain {
     } else {
       // Apply to all products
       applicableSubtotal = validatedItems.reduce((sum, item) => sum + item.subtotal, 0);
+    }
+
+    if (promotionalDiscount) {
+      applicableSubtotal -= promotionalDiscount;
     }
 
     let discountAmount = 0;

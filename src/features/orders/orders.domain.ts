@@ -215,39 +215,6 @@ export class OrdersDomain {
       });
     }
 
-    // Apply discount code if provided
-    let discountAmount = 0;
-    let discountCodeId: string | undefined;
-    let hasFreeShippingDiscount = false;
-
-    if (discountCode) {
-      const discountValidation = await cartDomain.validateDiscountCode(
-        discountCode,
-        subtotal,
-        items,
-        userId
-      );
-
-      if (!discountValidation.isValid) {
-        throw new ValidationError(
-          discountValidation.error || 'Invalid discount code',
-          { errorCode: discountValidation.errorCode }
-        );
-      }
-
-      // Get discount code details for tracking
-      const dbDiscountCode = await cartRepository.getDiscountCodeByCode(discountCode);
-      if (dbDiscountCode) {
-        discountCodeId = dbDiscountCode.id;
-        hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
-
-        // Calculate discount amount (will be adjusted for free shipping later)
-        if (discountValidation.discountAmount) {
-          discountAmount = discountValidation.discountAmount;
-        }
-      }
-    }
-
     // Evaluate auto promotions using promotionEngine
     let promotionDiscountAmount = 0;
     let appliedPromotions: AppliedPromotion[] = [];
@@ -308,6 +275,40 @@ export class OrdersDomain {
     } catch (error) {
       // Log error but continue without promotions
       logger.error({ error }, 'Failed to evaluate auto promotions in calculateOrderPricing, continuing without');
+    }
+
+    // Apply discount code if provided
+    let discountAmount = 0;
+    let discountCodeId: string | undefined;
+    let hasFreeShippingDiscount = false;
+
+    if (discountCode) {
+      const discountValidation = await cartDomain.validateDiscountCode(
+        discountCode,
+        subtotal,
+        items,
+        userId,
+        promotionDiscountAmount
+      );
+
+      if (!discountValidation.isValid) {
+        throw new ValidationError(
+          discountValidation.error || 'Invalid discount code',
+          { errorCode: discountValidation.errorCode }
+        );
+      }
+
+      // Get discount code details for tracking
+      const dbDiscountCode = await cartRepository.getDiscountCodeByCode(discountCode);
+      if (dbDiscountCode) {
+        discountCodeId = dbDiscountCode.id;
+        hasFreeShippingDiscount = dbDiscountCode.discountType === 'free_shipping';
+
+        // Calculate discount amount (will be adjusted for free shipping later)
+        if (discountValidation.discountAmount) {
+          discountAmount = discountValidation.discountAmount;
+        }
+      }
     }
 
     // Calculate shipping cost based on selected method
