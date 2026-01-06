@@ -67,6 +67,10 @@ export const createProductSchema = z.object({
     title: z.string(),
     imageUrl: z.string().optional().or(z.literal('')),
   })).optional(),
+
+  // Rating & Reviews (admin adjustable)
+  rating: z.string().optional(), // stored as decimal in DB
+  reviewCount: z.number().int().min(0).optional(),
 });
 
 export const updateProductSchema = createProductSchema.partial();
