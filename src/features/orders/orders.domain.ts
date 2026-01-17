@@ -501,7 +501,106 @@ export class OrdersDomain {
     // Record promotion usage for analytics and tracking
     await this.recordPromotionUsage(order.id, appliedPromotions, orderData.subtotal, userId);
 
+    // Send order confirmation emails asynchronously (don't block order creation)
+    this.sendOrderConfirmationEmails(order, data, orderData, finalTotalAmount);
+
     return order;
+  }
+
+  /**
+   * Send order confirmation emails asynchronously
+   */
+  private sendOrderConfirmationEmails(
+    order: any,
+    data: CreateOrderRequest,
+    orderData: any,
+    finalTotalAmount: number
+  ): void {
+    setImmediate(async () => {
+      try {
+        const orderDate = new Date().toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        });
+
+        const orderDetailsUrl = `${config.web.url}/order-success/${order.orderNumber}`;
+        const adminOrderUrl = `${config.web.url}/admin/orders/${order.id}`;
+
+        // Prepare order items for email
+        const emailItems = orderData.items.map((item: any) => ({
+          productName: item.productName,
+          variantName: item.variantName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          isPromotionalGift: item.isPromotionalGift || false,
+        }));
+
+        const shippingAddress = {
+          firstName: data.shippingAddress.firstName,
+          lastName: data.shippingAddress.lastName,
+          addressLine1: data.shippingAddress.addressLine1,
+          addressLine2: data.shippingAddress.addressLine2,
+          city: data.shippingAddress.city,
+          province: data.shippingAddress.province,
+          postalCode: data.shippingAddress.postalCode,
+          phone: data.shippingAddress.phone,
+        };
+
+        const customerName = `${data.shippingAddress.firstName} ${data.shippingAddress.lastName}`;
+
+        // 1. Send customer order confirmation email
+        await emailService.sendOrderConfirmationEmail(data.email, {
+          orderNumber: order.orderNumber,
+          customerName,
+          orderDate,
+          items: emailItems,
+          subtotal: orderData.subtotal,
+          shippingCost: orderData.shippingCost,
+          discountAmount: orderData.discountAmount || 0,
+          promotionDiscountAmount: orderData.promotionDiscountAmount || 0,
+          totalAmount: finalTotalAmount,
+          shippingAddress,
+          orderDetailsUrl,
+        });
+
+        logger.info(
+          { orderId: order.id, orderNumber: order.orderNumber, email: data.email },
+          'Order confirmation email sent to customer'
+        );
+
+        // 2. Send admin new order notification with CC
+        const adminCc = emailService.getAdminCcEmail();
+
+        await emailService.sendAdminNewOrderNotification(
+          adminCc, // Send directly to admin CC email
+          {
+            orderNumber: order.orderNumber,
+            customerName,
+            customerEmail: data.email,
+            customerPhone: data.shippingAddress.phone,
+            orderDate,
+            items: emailItems,
+            totalAmount: finalTotalAmount,
+            shippingAddress,
+            orderDetailsUrl,
+            adminOrderUrl,
+          }
+        );
+
+        logger.info(
+          { orderId: order.id, orderNumber: order.orderNumber, adminEmail: adminCc },
+          'New order notification sent to admin'
+        );
+      } catch (error) {
+        // Log error but don't fail order creation
+        logger.error(
+          { error, orderId: order.id, orderNumber: order.orderNumber },
+          'Failed to send order confirmation emails'
+        );
+      }
+    });
   }
 
   /**
@@ -617,13 +716,17 @@ export class OrdersDomain {
           day: 'numeric',
         });
 
+        // Get admin CC email for status notifications
+        const adminCc = emailService.getAdminCcEmail();
+
         switch (newStatus) {
           case 'processing':
             await emailService.sendOrderProcessingEmail(
               order.email,
               order.orderNumber,
               orderDate,
-              orderDetailsUrl
+              orderDetailsUrl,
+              adminCc // CC admin on processing emails
             );
             break;
 
@@ -646,7 +749,8 @@ export class OrdersDomain {
               carrier,
               estimatedDelivery,
               trackingUrl,
-              orderDetailsUrl
+              orderDetailsUrl,
+              adminCc // CC admin on shipped emails
             );
             break;
 

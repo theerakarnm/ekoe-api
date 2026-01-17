@@ -28,6 +28,7 @@ export const config = {
       password: process.env.SMTP_PASSWORD || '',
     },
     from: process.env.SMTP_FROM || 'noreply@example.com',
+    adminCc: process.env.ADMIN_CC_EMAIL || 'ekoecare@ekoe.co',
   },
   web: {
     url: process.env.WEB_URL || 'http://localhost:5173',

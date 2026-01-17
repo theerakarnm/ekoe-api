@@ -40,26 +40,40 @@ class EmailService {
     }
   }
 
-  async sendEmail(to: string, subject: string, html: string): Promise<boolean> {
+  async sendEmail(to: string, subject: string, html: string, cc?: string | string[]): Promise<boolean> {
     if (!this.isConfigured || !this.transporter) {
       logger.warn({ to, subject }, 'Email not sent - SMTP not configured');
       return false;
     }
 
     try {
-      const info = await this.transporter.sendMail({
+      const mailOptions: any = {
         from: config.email.from,
         to,
         subject,
         html,
-      });
+      };
 
-      logger.info({ messageId: info.messageId, to, subject }, 'Email sent successfully');
+      // Add CC if provided
+      if (cc) {
+        mailOptions.cc = cc;
+      }
+
+      const info = await this.transporter.sendMail(mailOptions);
+
+      logger.info({ messageId: info.messageId, to, cc, subject }, 'Email sent successfully');
       return true;
     } catch (error) {
-      logger.error({ error, to, subject }, 'Failed to send email');
+      logger.error({ error, to, cc, subject }, 'Failed to send email');
       return false;
     }
+  }
+
+  /**
+   * Get the admin CC email from configuration
+   */
+  getAdminCcEmail(): string {
+    return config.email.adminCc;
   }
 
   async sendVerificationEmail(email: string, name: string, verificationUrl: string): Promise<boolean> {
@@ -221,12 +235,13 @@ class EmailService {
     email: string,
     orderNumber: string,
     orderDate: string,
-    orderDetailsUrl: string
+    orderDetailsUrl: string,
+    cc?: string
   ): Promise<boolean> {
     try {
       const subject = `Order Processing - ${orderNumber}`;
       const html = this.getOrderProcessingTemplate(orderNumber, orderDate, orderDetailsUrl);
-      return await this.sendEmail(email, subject, html);
+      return await this.sendEmail(email, subject, html, cc);
     } catch (error) {
       logger.error({ error, email, orderNumber }, 'Failed to send order processing email');
       return false;
@@ -243,7 +258,8 @@ class EmailService {
     carrier: string,
     estimatedDelivery: string,
     trackingUrl: string,
-    orderDetailsUrl: string
+    orderDetailsUrl: string,
+    cc?: string
   ): Promise<boolean> {
     try {
       const subject = `Order Shipped - ${orderNumber}`;
@@ -255,7 +271,7 @@ class EmailService {
         trackingUrl,
         orderDetailsUrl
       );
-      return await this.sendEmail(email, subject, html);
+      return await this.sendEmail(email, subject, html, cc);
     } catch (error) {
       logger.error({ error, email, orderNumber }, 'Failed to send order shipped email');
       return false;
@@ -826,6 +842,271 @@ class EmailService {
         </body>
       </html>
     `;
+  }
+
+  /**
+   * Order item interface for email templates
+   */
+  private formatOrderItemsForEmail(items: Array<{
+    productName: string;
+    variantName?: string | null;
+    quantity: number;
+    unitPrice: number;
+    subtotal: number;
+    isPromotionalGift?: boolean | null;
+  }>): string {
+    return items.map(item => `
+      <tr style="border-bottom: 1px solid #e9ecef;">
+        <td style="padding: 12px 0;">
+          <span style="color: #333333; font-size: 14px;">${item.productName}${item.variantName ? ` - ${item.variantName}` : ''}${item.isPromotionalGift ? ' <span style="color: #28a745; font-size: 12px;">(Gift)</span>' : ''}</span>
+        </td>
+        <td style="padding: 12px 8px; text-align: center;">
+          <span style="color: #6c757d; font-size: 14px;">x${item.quantity}</span>
+        </td>
+        <td style="padding: 12px 0; text-align: right;">
+          <span style="color: #333333; font-size: 14px;">${item.isPromotionalGift ? 'FREE' : `฿${(item.subtotal / 100).toLocaleString()}`}</span>
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  /**
+   * Send order confirmation email to customer
+   */
+  async sendOrderConfirmationEmail(
+    email: string,
+    orderDetails: {
+      orderNumber: string;
+      customerName: string;
+      orderDate: string;
+      items: Array<{
+        productName: string;
+        variantName?: string | null;
+        quantity: number;
+        unitPrice: number;
+        subtotal: number;
+        isPromotionalGift?: boolean | null;
+      }>;
+      subtotal: number;
+      shippingCost: number;
+      discountAmount: number;
+      promotionDiscountAmount?: number;
+      totalAmount: number;
+      shippingAddress: {
+        firstName: string;
+        lastName: string;
+        addressLine1: string;
+        addressLine2?: string | null;
+        city: string;
+        province: string;
+        postalCode: string;
+        phone: string;
+      };
+      orderDetailsUrl: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const subject = `Order Confirmed - ${orderDetails.orderNumber}`;
+      const html = this.getOrderConfirmationTemplate(orderDetails);
+      return await this.sendEmail(email, subject, html);
+    } catch (error) {
+      logger.error({ error, email, orderNumber: orderDetails.orderNumber }, 'Failed to send order confirmation email');
+      return false;
+    }
+  }
+
+  /**
+   * Send new order notification to admin
+   */
+  async sendAdminNewOrderNotification(
+    adminEmail: string,
+    orderDetails: {
+      orderNumber: string;
+      customerName: string;
+      customerEmail: string;
+      customerPhone: string;
+      orderDate: string;
+      items: Array<{
+        productName: string;
+        variantName?: string | null;
+        quantity: number;
+        unitPrice: number;
+        subtotal: number;
+        isPromotionalGift?: boolean | null;
+      }>;
+      totalAmount: number;
+      shippingAddress: {
+        firstName: string;
+        lastName: string;
+        addressLine1: string;
+        addressLine2?: string | null;
+        city: string;
+        province: string;
+        postalCode: string;
+        phone: string;
+      };
+      orderDetailsUrl: string;
+      adminOrderUrl: string;
+    },
+    cc?: string
+  ): Promise<boolean> {
+    try {
+      const subject = `🛒 New Order - ${orderDetails.orderNumber} - ฿${(orderDetails.totalAmount / 100).toLocaleString()}`;
+      const html = this.getAdminNewOrderTemplate(orderDetails);
+      return await this.sendEmail(adminEmail, subject, html, cc);
+    } catch (error) {
+      logger.error({ error, adminEmail, orderNumber: orderDetails.orderNumber }, 'Failed to send admin new order notification');
+      return false;
+    }
+  }
+
+  /**
+   * Get order confirmation email template
+   */
+  private getOrderConfirmationTemplate(orderDetails: {
+    orderNumber: string;
+    customerName: string;
+    orderDate: string;
+    items: Array<{
+      productName: string;
+      variantName?: string | null;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+      isPromotionalGift?: boolean | null;
+    }>;
+    subtotal: number;
+    shippingCost: number;
+    discountAmount: number;
+    promotionDiscountAmount?: number;
+    totalAmount: number;
+    shippingAddress: {
+      firstName: string;
+      lastName: string;
+      addressLine1: string;
+      addressLine2?: string | null;
+      city: string;
+      province: string;
+      postalCode: string;
+      phone: string;
+    };
+    orderDetailsUrl: string;
+  }): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'order-confirmation.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      const orderItemsHtml = this.formatOrderItemsForEmail(orderDetails.items);
+      const totalDiscount = (orderDetails.discountAmount || 0) + (orderDetails.promotionDiscountAmount || 0);
+
+      const discountRow = totalDiscount > 0 ? `
+        <tr>
+          <td style="padding: 8px 0;">
+            <span style="color: #28a745; font-size: 14px;">Discount</span>
+          </td>
+          <td style="padding: 8px 0; text-align: right;">
+            <span style="color: #28a745; font-size: 14px;">-฿${(totalDiscount / 100).toLocaleString()}</span>
+          </td>
+        </tr>
+      ` : '';
+
+      const shippingCostDisplay = orderDetails.shippingCost === 0
+        ? '<span style="color: #28a745;">FREE</span>'
+        : `฿${(orderDetails.shippingCost / 100).toLocaleString()}`;
+
+      const shippingAddressLine2 = orderDetails.shippingAddress.addressLine2
+        ? `${orderDetails.shippingAddress.addressLine2}, `
+        : '';
+
+      template = template
+        .replace(/\{\{CUSTOMER_NAME\}\}/g, orderDetails.customerName)
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderDetails.orderNumber)
+        .replace(/\{\{ORDER_DATE\}\}/g, orderDetails.orderDate)
+        .replace(/\{\{ORDER_ITEMS\}\}/g, orderItemsHtml)
+        .replace(/\{\{SUBTOTAL\}\}/g, (orderDetails.subtotal / 100).toLocaleString())
+        .replace(/\{\{SHIPPING_COST\}\}/g, shippingCostDisplay)
+        .replace(/\{\{DISCOUNT_ROW\}\}/g, discountRow)
+        .replace(/\{\{TOTAL_AMOUNT\}\}/g, (orderDetails.totalAmount / 100).toLocaleString())
+        .replace(/\{\{SHIPPING_NAME\}\}/g, `${orderDetails.shippingAddress.firstName} ${orderDetails.shippingAddress.lastName}`)
+        .replace(/\{\{SHIPPING_ADDRESS\}\}/g, `${orderDetails.shippingAddress.addressLine1}${shippingAddressLine2 ? ', ' + shippingAddressLine2 : ''}`)
+        .replace(/\{\{SHIPPING_CITY\}\}/g, orderDetails.shippingAddress.city)
+        .replace(/\{\{SHIPPING_PROVINCE\}\}/g, orderDetails.shippingAddress.province)
+        .replace(/\{\{SHIPPING_POSTAL_CODE\}\}/g, orderDetails.shippingAddress.postalCode)
+        .replace(/\{\{SHIPPING_PHONE\}\}/g, orderDetails.shippingAddress.phone)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetails.orderDetailsUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load order confirmation template');
+      throw error;
+    }
+  }
+
+  /**
+   * Get admin new order notification template
+   */
+  private getAdminNewOrderTemplate(orderDetails: {
+    orderNumber: string;
+    customerName: string;
+    customerEmail: string;
+    customerPhone: string;
+    orderDate: string;
+    items: Array<{
+      productName: string;
+      variantName?: string | null;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+      isPromotionalGift?: boolean | null;
+    }>;
+    totalAmount: number;
+    shippingAddress: {
+      firstName: string;
+      lastName: string;
+      addressLine1: string;
+      addressLine2?: string | null;
+      city: string;
+      province: string;
+      postalCode: string;
+      phone: string;
+    };
+    orderDetailsUrl: string;
+    adminOrderUrl: string;
+  }): string {
+    try {
+      const templatePath = join(__dirname, 'templates', 'admin-new-order.html');
+      let template = readFileSync(templatePath, 'utf-8');
+
+      const orderItemsHtml = this.formatOrderItemsForEmail(orderDetails.items);
+      const itemCount = orderDetails.items.reduce((sum, item) => sum + item.quantity, 0);
+
+      const shippingAddressLine2 = orderDetails.shippingAddress.addressLine2
+        ? `${orderDetails.shippingAddress.addressLine2}, `
+        : '';
+
+      template = template
+        .replace(/\{\{CUSTOMER_NAME\}\}/g, orderDetails.customerName)
+        .replace(/\{\{CUSTOMER_EMAIL\}\}/g, orderDetails.customerEmail)
+        .replace(/\{\{CUSTOMER_PHONE\}\}/g, orderDetails.customerPhone)
+        .replace(/\{\{ORDER_NUMBER\}\}/g, orderDetails.orderNumber)
+        .replace(/\{\{ORDER_DATE\}\}/g, orderDetails.orderDate)
+        .replace(/\{\{TOTAL_AMOUNT\}\}/g, (orderDetails.totalAmount / 100).toLocaleString())
+        .replace(/\{\{ITEM_COUNT\}\}/g, itemCount.toString())
+        .replace(/\{\{ORDER_ITEMS\}\}/g, orderItemsHtml)
+        .replace(/\{\{SHIPPING_NAME\}\}/g, `${orderDetails.shippingAddress.firstName} ${orderDetails.shippingAddress.lastName}`)
+        .replace(/\{\{SHIPPING_ADDRESS\}\}/g, `${orderDetails.shippingAddress.addressLine1}${shippingAddressLine2 ? ', ' + shippingAddressLine2 : ''}`)
+        .replace(/\{\{SHIPPING_CITY\}\}/g, orderDetails.shippingAddress.city)
+        .replace(/\{\{SHIPPING_PROVINCE\}\}/g, orderDetails.shippingAddress.province)
+        .replace(/\{\{SHIPPING_POSTAL_CODE\}\}/g, orderDetails.shippingAddress.postalCode)
+        .replace(/\{\{SHIPPING_PHONE\}\}/g, orderDetails.shippingAddress.phone)
+        .replace(/\{\{ORDER_DETAILS_URL\}\}/g, orderDetails.orderDetailsUrl)
+        .replace(/\{\{ADMIN_ORDER_URL\}\}/g, orderDetails.adminOrderUrl);
+
+      return template;
+    } catch (error) {
+      logger.warn({ error }, 'Failed to load admin new order template');
+      throw error;
+    }
   }
 }
 
