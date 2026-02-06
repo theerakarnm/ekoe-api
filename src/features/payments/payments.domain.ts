@@ -586,8 +586,6 @@ export class PaymentsDomain {
           // Find the order by orderId (orderId is stored on the order table, not the payment)
           const payment = await paymentsRepository.getPaymentById(paymentId, tx);
 
-          console.dir({ payment }, { depth: null });
-
           if (!payment) {
             logger.warn({ paymentId }, 'Payment not found by paymentId during 2C2P return processing');
             throw new NotFoundError('Payment');
