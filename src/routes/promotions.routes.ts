@@ -347,7 +347,7 @@ promotions.post('/', requireAdminAuth, zValidator('json', createPromotionSchema)
 
     return ResponseBuilder.created(c, promotion);
   } catch (error) {
-    console.log(error);
+    console.error(error);
 
     logger.error({ error }, 'Failed to create promotion');
     return ResponseBuilder.error(c, (error as Error).message || 'Failed to create promotion', 400);

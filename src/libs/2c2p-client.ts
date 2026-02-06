@@ -198,7 +198,6 @@ export class TwoC2PClient {
       // Decode JWT response
       const decodedResponse = this.decodeJwtResponse(responseData.payload);
 
-      console.log(decodedResponse);
       // Check response code (0000 = success)
       if (decodedResponse.respCode !== '0000') {
         logger.error(

@@ -359,9 +359,6 @@ export class CartDomain {
     // Get discount code from database
     const discountCode = await cartRepository.getDiscountCodeByCode(code);
 
-    console.log(discountCode);
-
-
     if (!discountCode) {
       return {
         isValid: false,
@@ -372,8 +369,6 @@ export class CartDomain {
 
     // Check if code has started
     if (discountCode.startsAt && new Date(discountCode.startsAt) > new Date()) {
-      console.log('not started');
-
       return {
         isValid: false,
         error: 'This discount code is not yet active',
@@ -383,8 +378,6 @@ export class CartDomain {
 
     // Check if code has expired
     if (discountCode.expiresAt && new Date(discountCode.expiresAt) < new Date()) {
-      console.log('expired');
-
       return {
         isValid: false,
         error: 'This discount code has expired',
@@ -434,11 +427,6 @@ export class CartDomain {
     // Check if discount linked products are in the cart
     if (linkedProductIds.length > 0) {
       const cartProductIds = items?.map(item => item.productId);
-      console.log({
-        cartProductIds,
-        linkedProductIds
-      });
-
       const hasLinkedProduct = linkedProductIds.some(
         productId => cartProductIds?.includes(productId)
       );

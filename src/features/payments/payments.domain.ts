@@ -9,6 +9,7 @@ import { logger } from '../../core/logger';
 import { paymentConfig, getPaymentExpiryDate } from '../../core/config/payment.config';
 import { getPromptPayClient } from '../../libs/promptpay-client';
 import { getTwoC2PClient } from '../../libs/2c2p-client';
+import { metaCAPI } from '../../libs/meta-capi';
 import crypto from 'crypto';
 import type {
   PaymentStatus,
@@ -276,6 +277,35 @@ export class PaymentsDomain {
           logger.error(
             { error, paymentId, orderId: payment.orderId },
             'Failed to send payment confirmation email'
+          );
+        }
+
+        // 📊 Meta CAPI: Track Purchase (Server-Side) สำหรับ iOS 14+
+        try {
+          if (order && metaCAPI.isConfigured()) {
+            await metaCAPI.trackPurchase({
+              orderId: order.id,
+              orderNumber: order.orderNumber,
+              email: order.email,
+              phone: order.shippingAddress?.phone || undefined,
+              firstName: order.shippingAddress?.firstName || undefined,
+              lastName: order.shippingAddress?.lastName || undefined,
+              city: order.shippingAddress?.city || undefined,
+              zipCode: order.shippingAddress?.postalCode || undefined,
+              country: order.shippingAddress?.country || 'TH',
+              totalAmount: order.totalAmount,
+              items: (order.items || [])
+                .filter((item: { productId: string | null }) => item.productId !== null)
+                .map((item: { productId: string | null; quantity: number }) => ({
+                  productId: item.productId as string,
+                  quantity: item.quantity,
+                })),
+            });
+          }
+        } catch (error) {
+          logger.error(
+            { error, paymentId, orderId: payment.orderId },
+            'Failed to track Purchase via Meta CAPI'
           );
         }
       });

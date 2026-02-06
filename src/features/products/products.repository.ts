@@ -136,12 +136,16 @@ export class ProductsRepository {
   }
 
   async findById(id: string) {
+    // Check if the identifier is a UUID (36 characters with hyphens pattern)
+    // If not, treat it as a slug
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+
     const result = await db
       .select()
       .from(products)
       .where(
         and(
-          eq(products.id, id),
+          isUuid ? eq(products.id, id) : eq(products.slug, id),
           isNull(products.deletedAt)
         )
       )
@@ -151,11 +155,13 @@ export class ProductsRepository {
       throw new NotFoundError('Product');
     }
 
+    const productId = result[0].id;
+
     // Get variants
     const variants = await db
       .select()
       .from(productVariants)
-      .where(eq(productVariants.productId, id));
+      .where(eq(productVariants.productId, productId));
 
     // Group variants by variantType
     const variantsByType = new Map<string, typeof variants>();
@@ -176,11 +182,11 @@ export class ProductsRepository {
     const images = await db
       .select()
       .from(productImages)
-      .where(eq(productImages.productId, id))
+      .where(eq(productImages.productId, productId))
       .orderBy(asc(productImages.sortOrder));
 
     // Get set items with full product details
-    const setItemsRaw = await db.select().from(productSets).where(eq(productSets.setProductId, id)).orderBy(asc(productSets.sortOrder));
+    const setItemsRaw = await db.select().from(productSets).where(eq(productSets.setProductId, productId)).orderBy(asc(productSets.sortOrder));
 
     let setItems: {
       productId: string;
@@ -243,7 +249,7 @@ export class ProductsRepository {
       groupedVariants,
       images,
       setItems,
-      benefits: (await db.select().from(productBenefits).where(eq(productBenefits.productId, id)).orderBy(asc(productBenefits.sortOrder))).map(b => b.benefit),
+      benefits: (await db.select().from(productBenefits).where(eq(productBenefits.productId, productId)).orderBy(asc(productBenefits.sortOrder))).map(b => b.benefit),
       tags: (await db
         .select({
           id: tags.id,
@@ -253,7 +259,7 @@ export class ProductsRepository {
         })
         .from(productTags)
         .innerJoin(tags, eq(productTags.tagId, tags.id))
-        .where(eq(productTags.productId, id))),
+        .where(eq(productTags.productId, productId))),
     };
   }
 
