@@ -17,7 +17,7 @@ import sharp from 'sharp';
 
 // Configuration
 const config = {
-  inputDir: join(import.meta.dir, '../../web/public/ekoe-asset'),
+  inputDir: join(import.meta.dirname!, '../../web/public/ekoe-asset'),
   supportedExtensions: ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
   outputFormats: ['avif', 'webp'] as const,
   quality: {
