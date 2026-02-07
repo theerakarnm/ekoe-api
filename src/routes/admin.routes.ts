@@ -124,8 +124,13 @@ adminRoutes.post('/products/:id/images', requireAdminAuth, async (c) => {
   // Determine media type from file
   const mediaType = imageFile.type.startsWith('video/') ? 'video' : 'image';
 
-  // Upload to R2
-  const url = await storageService.uploadFile(imageFile);
+  // Upload to R2 with automatic compression for images
+  const uploadResult = await storageService.uploadFile(imageFile);
+
+  // Handle both compressed (object) and simple (string) upload results
+  const url = typeof uploadResult === 'string'
+    ? uploadResult
+    : uploadResult.url;
 
   const image = await productsRepository.addImage(productId, {
     url,
@@ -172,10 +177,19 @@ adminRoutes.post('/upload-image', requireAdminAuth, async (c) => {
     return ResponseBuilder.error(c, 'Image file is required', 400, 'VALIDATION_ERROR');
   }
 
-  // Upload to R2
-  const url = await storageService.uploadFile(imageFile);
+  // Upload to R2 with automatic compression
+  const uploadResult = await storageService.uploadFile(imageFile);
 
-  return ResponseBuilder.success(c, { url });
+  // Handle both compressed (object) and simple (string) upload results
+  if (typeof uploadResult === 'string') {
+    return ResponseBuilder.success(c, { url: uploadResult });
+  }
+
+  return ResponseBuilder.success(c, {
+    url: uploadResult.url,
+    variants: uploadResult.variants,
+    stats: uploadResult.stats,
+  });
 });
 
 // Product variants CRUD endpoints
