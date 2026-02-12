@@ -92,6 +92,25 @@ export class BlogRepository {
     return result[0];
   }
 
+  async findBySlug(slug: string) {
+    const result = await db
+      .select()
+      .from(blogPosts)
+      .where(
+        and(
+          eq(blogPosts.slug, slug),
+          isNull(blogPosts.deletedAt)
+        )
+      )
+      .limit(1);
+
+    if (!result.length) {
+      throw new NotFoundError('Blog post');
+    }
+
+    return result[0];
+  }
+
   async create(data: CreateBlogPostInput) {
     const result = await db
       .insert(blogPosts)

@@ -24,20 +24,13 @@ blogRoutes.get('/', async (c) => {
   return ResponseBuilder.success(c, result);
 });
 
-// Get single published blog post
-blogRoutes.get('/:id', async (c) => {
-  const id = c.req.param('id');
-  // TODO: Add slug support if needed, currently using ID
-  const post = await blogDomain.getBlogPostById(id);
+// Get single published blog post by ID or slug
+blogRoutes.get('/:identifier', async (c) => {
+  const identifier = c.req.param('identifier');
+  const post = await blogDomain.getBlogPostByIdOrSlug(identifier);
 
   if (post.status !== 'published') {
-    // Treat non-published as 404 for public API
-    // Or we could let it return but frontend handles it. 
-    // Secure approach: return 404 or filter in domain.
-    // For now, let's just checking status here.
-    if (post.status !== 'published') {
-      return ResponseBuilder.error(c, 'Blog post not found', 404, 'NOT_FOUND');
-    }
+    return ResponseBuilder.error(c, 'Blog post not found', 404, 'NOT_FOUND');
   }
 
   return ResponseBuilder.success(c, post);

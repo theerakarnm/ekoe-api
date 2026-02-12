@@ -24,6 +24,22 @@ export class BlogDomain {
     return await blogRepository.findById(id);
   }
 
+  async getBlogPostBySlug(slug: string) {
+    return await blogRepository.findBySlug(slug);
+  }
+
+  /**
+   * Get blog post by ID or slug (auto-detect)
+   */
+  async getBlogPostByIdOrSlug(identifier: string) {
+    // UUID v7 format check
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (uuidRegex.test(identifier)) {
+      return await blogRepository.findById(identifier);
+    }
+    return await blogRepository.findBySlug(identifier);
+  }
+
   async createBlogPost(data: CreateBlogPostInput) {
     // Auto-generate table of contents from heading blocks
     const tableOfContents = data.contentBlocks
