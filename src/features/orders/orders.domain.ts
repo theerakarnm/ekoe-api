@@ -700,118 +700,134 @@ export class OrdersDomain {
 
   /**
    * Send status notification email asynchronously
+   * Called without await from updateOrderStatus/handlePaymentEvent so it won't block the response.
    */
   private async sendStatusNotification(
     order: OrderDetail,
     newStatus: OrderStatus,
     note?: string
   ): Promise<void> {
-    // Don't block on email sending - run asynchronously
-    setImmediate(async () => {
-      try {
-        const orderDetailsUrl = `${config.web.url}/order-success/${order.orderNumber}`;
-        const orderDate = order.createdAt.toLocaleDateString('en-US', {
-          year: 'numeric',
-          month: 'long',
-          day: 'numeric',
-        });
+    // Skip if email service is not configured
+    if (!emailService.isEnabled()) {
+      logger.warn(
+        { orderId: order.id, orderNumber: order.orderNumber, status: newStatus },
+        'Email service not configured - skipping status notification email'
+      );
+      return;
+    }
 
-        // Get admin CC email for status notifications
-        const adminCc = emailService.getAdminCcEmail();
+    try {
+      const orderDetailsUrl = `${config.web.url}/order-success/${order.orderNumber}`;
+      const orderDate = order.createdAt.toLocaleDateString('en-US', {
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      });
 
-        switch (newStatus) {
-          case 'processing':
-            await emailService.sendOrderProcessingEmail(
-              order.email,
-              order.orderNumber,
-              orderDate,
-              orderDetailsUrl,
-              adminCc // CC admin on processing emails
-            );
-            break;
+      // Get admin CC email for status notifications
+      const adminCc = emailService.getAdminCcEmail();
 
-          case 'shipped':
-            // For shipped status, we need tracking information
-            // Using placeholder values - these should come from shipping integration
-            const trackingNumber = 'TRK' + Date.now().toString().slice(-10);
-            const carrier = 'Thailand Post';
-            const estimatedDelivery = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            });
-            const trackingUrl = `https://track.thailandpost.co.th/?trackNumber=${trackingNumber}`;
+      logger.info(
+        { orderId: order.id, orderNumber: order.orderNumber, email: order.email, status: newStatus },
+        'Attempting to send status notification email'
+      );
 
-            await emailService.sendOrderShippedEmail(
-              order.email,
-              order.orderNumber,
-              trackingNumber,
-              carrier,
-              estimatedDelivery,
-              trackingUrl,
-              orderDetailsUrl,
-              adminCc // CC admin on shipped emails
-            );
-            break;
+      switch (newStatus) {
+        case 'processing':
+          await emailService.sendOrderProcessingEmail(
+            order.email,
+            order.orderNumber,
+            orderDate,
+            orderDetailsUrl,
+            adminCc // CC admin on processing emails
+          );
+          break;
 
-          case 'delivered':
-            const deliveryDate = new Date().toLocaleDateString('en-US', {
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            });
-            const deliveryAddress = order.shippingAddress
-              ? `${order.shippingAddress.addressLine1}, ${order.shippingAddress.city}, ${order.shippingAddress.province} ${order.shippingAddress.postalCode}`
-              : 'N/A';
+        case 'shipped': {
+          // For shipped status, we need tracking information
+          // Using placeholder values - these should come from shipping integration
+          const trackingNumber = 'TRK' + Date.now().toString().slice(-10);
+          const carrier = 'Thailand Post';
+          const estimatedDelivery = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          const trackingUrl = `https://track.thailandpost.co.th/?trackNumber=${trackingNumber}`;
 
-            await emailService.sendOrderDeliveredEmail(
-              order.email,
-              order.orderNumber,
-              deliveryDate,
-              deliveryAddress,
-              orderDetailsUrl
-            );
-            break;
-
-          case 'cancelled':
-            const cancellationReason = note || 'Order cancelled as requested';
-
-            await emailService.sendOrderCancelledEmail(
-              order.email,
-              order.orderNumber,
-              cancellationReason,
-              orderDetailsUrl
-            );
-            break;
-
-          case 'refunded':
-            const refundReason = note || 'Refund processed';
-            const refundAmount = order.totalAmount;
-            const currency = order.currency || 'THB';
-
-            await emailService.sendOrderRefundedEmail(
-              order.email,
-              order.orderNumber,
-              refundAmount,
-              currency,
-              refundReason,
-              orderDetailsUrl
-            );
-            break;
+          await emailService.sendOrderShippedEmail(
+            order.email,
+            order.orderNumber,
+            trackingNumber,
+            carrier,
+            estimatedDelivery,
+            trackingUrl,
+            orderDetailsUrl,
+            adminCc // CC admin on shipped emails
+          );
+          break;
         }
 
-        logger.info(
-          { orderId: order.id, orderNumber: order.orderNumber, status: newStatus },
-          'Status notification email sent'
-        );
-      } catch (error) {
-        // Log error but don't throw - email failures shouldn't block status updates
-        logger.error(
-          { error, orderId: order.id, orderNumber: order.orderNumber, status: newStatus },
-          'Failed to send status notification email'
-        );
+        case 'delivered': {
+          const deliveryDate = new Date().toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          });
+          const deliveryAddress = order.shippingAddress
+            ? `${order.shippingAddress.addressLine1}, ${order.shippingAddress.city}, ${order.shippingAddress.province} ${order.shippingAddress.postalCode}`
+            : 'N/A';
+
+          await emailService.sendOrderDeliveredEmail(
+            order.email,
+            order.orderNumber,
+            deliveryDate,
+            deliveryAddress,
+            orderDetailsUrl
+          );
+          break;
+        }
+
+        case 'cancelled': {
+          const cancellationReason = note || 'Order cancelled as requested';
+
+          await emailService.sendOrderCancelledEmail(
+            order.email,
+            order.orderNumber,
+            cancellationReason,
+            orderDetailsUrl
+          );
+          break;
+        }
+
+        case 'refunded': {
+          const refundReason = note || 'Refund processed';
+          const refundAmount = order.totalAmount;
+          const currency = order.currency || 'THB';
+
+          await emailService.sendOrderRefundedEmail(
+            order.email,
+            order.orderNumber,
+            refundAmount,
+            currency,
+            refundReason,
+            orderDetailsUrl
+          );
+          break;
+        }
       }
-    });
+
+      logger.info(
+        { orderId: order.id, orderNumber: order.orderNumber, email: order.email, status: newStatus },
+        'Status notification email sent successfully'
+      );
+    } catch (error) {
+      // Log error but don't throw - email failures shouldn't block status updates
+      logger.error(
+        { error, orderId: order.id, orderNumber: order.orderNumber, email: order.email, status: newStatus },
+        'Failed to send status notification email'
+      );
+    }
   }
 
   /**
